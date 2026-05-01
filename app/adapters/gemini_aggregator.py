@@ -1,5 +1,7 @@
 from __future__ import annotations
 import json
+import uuid
+import pydantic
 from google import genai
 from google.genai import types
 from app.domain.models import Damage, BoundingBox
@@ -61,7 +63,9 @@ class GeminiDamageAggregator:
 
         return self._parse_response(response.text)
 
-    def _parse_response(self, raw: str) -> list[Damage]:
+    def _parse_response(self, raw: str | None) -> list[Damage]:
+        if raw is None:
+            raise ValueError("Gemini returned empty response")
         try:
             items = json.loads(raw)
         except json.JSONDecodeError as exc:
@@ -70,20 +74,23 @@ class GeminiDamageAggregator:
             raise ValueError(f"Expected JSON array from Gemini, got {type(items).__name__}: {raw[:200]!r}")
         result = []
         for item in items:
-            result.append(Damage(
-                id=item.get("id", "dmg_00"),
-                type=item.get("type", "other"),
-                zone=item.get("zone", "unknown"),
-                severity=item.get("severity", "low"),
-                confidence=float(item.get("confidence", 0.0)),
-                bbox=BoundingBox(
-                    x=float(item.get("bbox_x", 0)),
-                    y=float(item.get("bbox_y", 0)),
-                    w=float(item.get("bbox_w", 0)),
-                    h=float(item.get("bbox_h", 0)),
-                ),
-                description=item.get("description", ""),
-                source_image_id=item.get("source_image_id"),
-                also_seen_in=item.get("also_seen_in", []),
-            ))
+            try:
+                result.append(Damage(
+                    id=item.get("id") or str(uuid.uuid4()),
+                    type=item.get("type", "other"),
+                    zone=item.get("zone", "unknown"),
+                    severity=item.get("severity", "low"),
+                    confidence=float(item.get("confidence", 0.0)),
+                    bbox=BoundingBox(
+                        x=float(item.get("bbox_x", 0)),
+                        y=float(item.get("bbox_y", 0)),
+                        w=float(item.get("bbox_w", 0)),
+                        h=float(item.get("bbox_h", 0)),
+                    ),
+                    description=item.get("description", ""),
+                    source_image_id=item.get("source_image_id"),
+                    also_seen_in=item.get("also_seen_in", []),
+                ))
+            except pydantic.ValidationError as exc:
+                raise ValueError(f"Invalid damage data from Gemini: {item}") from exc
         return result

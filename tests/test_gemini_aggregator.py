@@ -62,3 +62,26 @@ def test_aggregate_raises_on_malformed_response(mock_gemini_client):
     damage_lists = [[make_damage("d1", VehicleZone.hood, "img_001")]]
     with pytest.raises(ValueError, match="non-JSON"):
         aggregator.aggregate(damage_lists)
+
+
+def test_aggregate_raises_on_non_array_response(mock_gemini_client):
+    mock_gemini_client.models.generate_content.return_value.text = '{"error": "too many damages"}'
+    aggregator = GeminiDamageAggregator(client=mock_gemini_client, model="gemini-2.5-flash")
+    damage_lists = [[make_damage("d1", VehicleZone.hood, "img_001")]]
+    with pytest.raises(ValueError, match="Expected JSON array"):
+        aggregator.aggregate(damage_lists)
+
+
+def test_aggregate_empty_sublists_skips_gemini(mock_gemini_client):
+    aggregator = GeminiDamageAggregator(client=mock_gemini_client, model="gemini-2.5-flash")
+    result = aggregator.aggregate([[]])
+    assert result == []
+    mock_gemini_client.models.generate_content.assert_not_called()
+
+
+def test_aggregate_raises_on_none_response(mock_gemini_client):
+    mock_gemini_client.models.generate_content.return_value.text = None
+    aggregator = GeminiDamageAggregator(client=mock_gemini_client, model="gemini-2.5-flash")
+    damage_lists = [[make_damage("d1", VehicleZone.hood, "img_001")]]
+    with pytest.raises(ValueError, match="empty response"):
+        aggregator.aggregate(damage_lists)
