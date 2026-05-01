@@ -177,3 +177,31 @@ def test_get_report_session_not_found(client):
         app.dependency_overrides.pop(get_session_service, None)
 
     assert response.status_code == 404
+
+
+def test_add_image_wrong_tenant(client):
+    mock_service = MagicMock()
+    mock_service.add_image.side_effect = PermissionError("wrong tenant")
+    app.dependency_overrides[get_session_service] = lambda: mock_service
+    try:
+        response = client.post(
+            "/sessions/sess-uuid-001/images",
+            json={"image_url": "https://example.com/car.jpg"},
+            headers={"x-vision-key": "test"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_session_service, None)
+
+    assert response.status_code == 403
+
+
+def test_get_report_wrong_tenant(client):
+    mock_service = MagicMock()
+    mock_service.get_report.side_effect = PermissionError("wrong tenant")
+    app.dependency_overrides[get_session_service] = lambda: mock_service
+    try:
+        response = client.get("/sessions/sess-uuid-001/report", headers={"x-vision-key": "test"})
+    finally:
+        app.dependency_overrides.pop(get_session_service, None)
+
+    assert response.status_code == 403
