@@ -27,22 +27,30 @@ class GeminiImageAnalyzer:
         self._client = client
         self._model = model
 
-    def _download_image(self, image_url: str) -> tuple[bytes, int, int]:
-        response = httpx.get(image_url, timeout=30)
+    def _download_image(self, image_url: str) -> tuple[bytes, int, int, str]:
+        response = httpx.get(image_url, timeout=30, follow_redirects=False)
         response.raise_for_status()
         image_bytes = response.content
-        img = Image.open(io.BytesIO(image_bytes))
-        width, height = img.size
-        return image_bytes, width, height
+        if len(image_bytes) > 20 * 1024 * 1024:
+            raise ValueError(f"Image too large: {len(image_bytes)} bytes")
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            width, height = img.size
+            mime_type = Image.MIME.get(img.format or "", "image/jpeg")
+        return image_bytes, width, height, mime_type
 
     def _build_prompt(self, context: VehicleContext | None) -> str:
-        if context and any([context.make, context.model, context.year, context.color]):
+        if context and any((context.make, context.model, context.year, context.color)):
             parts = [p for p in [context.make, context.model, str(context.year) if context.year else None, context.color] if p]
             return f"Vehicle: {' '.join(parts)}. Analyze the damage."
         return "Analyze the damage on this vehicle."
 
     def _parse_response(self, raw: str, source_image_id: str | None) -> list[Damage]:
-        items = json.loads(raw)
+        try:
+            items = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Gemini returned non-JSON response: {raw[:200]!r}") from exc
+        if not isinstance(items, list):
+            raise ValueError(f"Expected JSON array from Gemini, got {type(items).__name__}: {raw[:200]!r}")
         damages = []
         for i, item in enumerate(items):
             damages.append(Damage(
@@ -76,12 +84,12 @@ class GeminiImageAnalyzer:
         context: VehicleContext | None,
         source_image_id: str | None = None,
     ) -> tuple[list[Damage], int, int]:
-        image_bytes, width, height = self._download_image(image_url)
+        image_bytes, width, height, mime_type = self._download_image(image_url)
 
         response = self._client.models.generate_content(
             model=self._model,
             contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
                 types.Part.from_text(text=self._build_prompt(context)),
             ],
             config=types.GenerateContentConfig(
@@ -92,9 +100,3 @@ class GeminiImageAnalyzer:
 
         damages = self._parse_response(response.text, source_image_id)
         return damages, width, height
-
-    def get_usage(self, response) -> tuple[int | None, int | None]:
-        meta = getattr(response, "usage_metadata", None)
-        if meta is None:
-            return None, None
-        return getattr(meta, "prompt_token_count", None), getattr(meta, "candidates_token_count", None)
