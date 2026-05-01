@@ -66,9 +66,8 @@ class GeminiImageAnalyzer:
         self,
         image_url: str,
         context: VehicleContext | None,
-        source_image_id: str | None = None,
     ) -> list[Damage]:
-        damages, _, _ = self.analyze_with_dimensions(image_url, context, source_image_id)
+        damages, _, _ = self.analyze_with_dimensions(image_url, context)
         return damages
 
     def analyze_with_dimensions(
