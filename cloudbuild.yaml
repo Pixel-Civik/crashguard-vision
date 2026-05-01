@@ -1,0 +1,33 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - -t
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/crashguard-vision:$COMMIT_SHA'
+      - .
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - push
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/crashguard-vision:$COMMIT_SHA'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - crashguard-vision
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/crashguard-vision:$COMMIT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --min-instances=0
+      - --max-instances=10
+      - --allow-unauthenticated
+      - --set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,VISION_API_KEY=VISION_API_KEY:latest
+
+substitutions:
+  _REGION: us-central1
+  _REPO: crashguard
+
+images:
+  - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/crashguard-vision:$COMMIT_SHA'
