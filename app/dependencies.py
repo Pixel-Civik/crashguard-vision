@@ -25,5 +25,19 @@ def get_analyze_service() -> AnalyzeService:
     return AnalyzeService(analyzer=analyzer, tracer=tracer)
 
 
-def get_session_service():
-    raise NotImplementedError("SessionService not yet implemented — complete Task 10")
+from app.services.session_service import SessionService
+
+
+def get_session_service() -> SessionService:
+    repo = get_repo()
+    tracer = DbAnalysisTracer(repo=repo)
+    analyzer = GeminiImageAnalyzer(client=_gemini_client(), model=settings.gemini_model)
+    aggregator = GeminiDamageAggregator(client=_gemini_client(), model=settings.gemini_model)
+    builder = PythonDamageMapBuilder()
+    return SessionService(
+        repo=repo,
+        analyzer=analyzer,
+        aggregator=aggregator,
+        builder=builder,
+        tracer=tracer,
+    )
