@@ -196,8 +196,8 @@ def test_vehicle_zone_fallback():
 def test_damage_defaults():
     d = Damage(
         id="dmg_01",
-        type=DamageType.abolladura,
-        zone=VehicleZone.capot,
+        type=DamageType.dent,
+        zone=VehicleZone.hood,
         severity=Severity.low,
         confidence=0.8,
         bbox=BoundingBox(x=0.0, y=0.0, w=0.5, h=0.5),
@@ -218,10 +218,10 @@ def test_damage_map_summary_fields():
         total_images=5,
         images_analyzed=4,
         total_damages=2,
-        zones_affected=[VehicleZone.capot],
+        zones_affected=[VehicleZone.hood],
         overall_severity=Severity.medium,
         damages_by_severity={Severity.medium: 2},
-        damages_by_type={DamageType.abolladura: 2},
+        damages_by_type={DamageType.dent: 2},
     )
     assert summary.images_skipped == []
 ```
@@ -242,34 +242,34 @@ from pydantic import BaseModel, field_validator
 
 
 class VehicleZone(str, Enum):
-    capot = "capot"
-    parabrisas = "parabrisas"
-    techo = "techo"
-    maletero = "maletero"
-    puerta_delantera_izq = "puerta_delantera_izq"
-    puerta_trasera_izq = "puerta_trasera_izq"
-    puerta_delantera_der = "puerta_delantera_der"
-    puerta_trasera_der = "puerta_trasera_der"
-    lateral_izq = "lateral_izq"
-    lateral_der = "lateral_der"
-    paragolpes_del = "paragolpes_del"
-    paragolpes_tras = "paragolpes_tras"
-    espejo_izq = "espejo_izq"
-    espejo_der = "espejo_der"
-    rueda_del_izq = "rueda_del_izq"
-    rueda_del_der = "rueda_del_der"
-    rueda_tras_izq = "rueda_tras_izq"
-    rueda_tras_der = "rueda_tras_der"
+    hood = "hood"
+    windshield = "windshield"
+    roof = "roof"
+    trunk = "trunk"
+    front_door_left = "front_door_left"
+    rear_door_left = "rear_door_left"
+    front_door_right = "front_door_right"
+    rear_door_right = "rear_door_right"
+    side_left = "side_left"
+    side_right = "side_right"
+    front_bumper = "front_bumper"
+    rear_bumper = "rear_bumper"
+    mirror_left = "mirror_left"
+    mirror_right = "mirror_right"
+    wheel_front_left = "wheel_front_left"
+    wheel_front_right = "wheel_front_right"
+    wheel_rear_left = "wheel_rear_left"
+    wheel_rear_right = "wheel_rear_right"
     unknown = "unknown"
 
 
 class DamageType(str, Enum):
-    abolladura = "abolladura"
-    rayon = "rayon"
-    quiebre = "quiebre"
-    mancha = "mancha"
-    corrosion = "corrosion"
-    vidrio_roto = "vidrio_roto"
+    dent = "dent"
+    scratch = "scratch"
+    crack = "crack"
+    stain = "stain"
+    rust = "rust"
+    broken_glass = "broken_glass"
     other = "other"
 
 
@@ -806,8 +806,8 @@ def builder():
 def sample_damage():
     return Damage(
         id="dmg_01",
-        type=DamageType.abolladura,
-        zone=VehicleZone.capot,
+        type=DamageType.dent,
+        zone=VehicleZone.hood,
         severity=Severity.medium,
         confidence=0.9,
         bbox=BoundingBox(x=0.1, y=0.2, w=0.3, h=0.1),
@@ -831,11 +831,11 @@ def test_build_populates_all_zones(builder, sample_damage, sample_images):
         vehicle_context=None,
     )
     assert isinstance(result, DamageMap)
-    assert VehicleZone.capot in result.zones
-    assert len(result.zones[VehicleZone.capot]) == 1
+    assert VehicleZone.hood in result.zones
+    assert len(result.zones[VehicleZone.hood]) == 1
     # All zones present, empty lists where no damages
-    assert VehicleZone.techo in result.zones
-    assert result.zones[VehicleZone.techo] == []
+    assert VehicleZone.roof in result.zones
+    assert result.zones[VehicleZone.roof] == []
 
 
 def test_build_summary_counts(builder, sample_damage, sample_images):
@@ -846,10 +846,10 @@ def test_build_summary_counts(builder, sample_damage, sample_images):
         vehicle_context=None,
     )
     assert result.summary.total_damages == 1
-    assert result.summary.zones_affected == [VehicleZone.capot]
+    assert result.summary.zones_affected == [VehicleZone.hood]
     assert result.summary.overall_severity == Severity.medium
     assert result.summary.damages_by_severity[Severity.medium] == 1
-    assert result.summary.damages_by_type[DamageType.abolladura] == 1
+    assert result.summary.damages_by_type[DamageType.dent] == 1
 
 
 def test_build_empty_damages(builder, sample_images):
@@ -868,13 +868,13 @@ def test_build_empty_damages(builder, sample_images):
 def test_build_overall_severity_is_max(builder, sample_images):
     damages = [
         Damage(
-            id="d1", type=DamageType.rayon, zone=VehicleZone.capot,
+            id="d1", type=DamageType.rayon, zone=VehicleZone.hood,
             severity=Severity.low, confidence=0.8,
             bbox=BoundingBox(x=0.0, y=0.0, w=0.1, h=0.1),
             description="rayón", source_image_id="img_001",
         ),
         Damage(
-            id="d2", type=DamageType.abolladura, zone=VehicleZone.techo,
+            id="d2", type=DamageType.dent, zone=VehicleZone.roof,
             severity=Severity.high, confidence=0.9,
             bbox=BoundingBox(x=0.5, y=0.5, w=0.2, h=0.2),
             description="abolladura", source_image_id="img_001",
@@ -1170,8 +1170,8 @@ def test_analyze_returns_damages(mock_gemini_client, mock_image_bytes):
         )
 
     assert len(damages) == 1
-    assert damages[0].type == DamageType.abolladura
-    assert damages[0].zone == VehicleZone.capot
+    assert damages[0].type == DamageType.dent
+    assert damages[0].zone == VehicleZone.hood
     assert damages[0].severity == Severity.medium
     assert damages[0].confidence == pytest.approx(0.91)
     assert damages[0].bbox.x == pytest.approx(0.12)
@@ -1236,8 +1236,8 @@ from app.domain.models import Damage, BoundingBox, VehicleContext
 _SYSTEM_PROMPT = """Eres un perito de daños vehiculares. Analiza la imagen del vehículo e identifica todos los daños visibles.
 
 Para cada daño retorna un objeto JSON con:
-- type: uno de [abolladura, rayon, quiebre, mancha, corrosion, vidrio_roto, other]
-- zone: zona del vehículo, uno de [capot, parabrisas, techo, maletero, puerta_delantera_izq, puerta_trasera_izq, puerta_delantera_der, puerta_trasera_der, lateral_izq, lateral_der, paragolpes_del, paragolpes_tras, espejo_izq, espejo_der, rueda_del_izq, rueda_del_der, rueda_tras_izq, rueda_tras_der]
+- type: uno de [dent, scratch, crack, stain, rust, broken_glass, other]
+- zone: zona del vehículo, uno de [hood, windshield, roof, trunk, front_door_left, rear_door_left, front_door_right, rear_door_right, side_left, side_right, front_bumper, rear_bumper, mirror_left, mirror_right, wheel_front_left, wheel_front_right, wheel_rear_left, wheel_rear_right]
 - severity: low | medium | high
 - confidence: float 0.0-1.0
 - bbox_x, bbox_y, bbox_w, bbox_h: bounding box normalizado [0-1], origen top-left
@@ -1363,7 +1363,7 @@ from app.domain.models import (
 def make_damage(id: str, zone: VehicleZone, image_id: str) -> Damage:
     return Damage(
         id=id,
-        type=DamageType.abolladura,
+        type=DamageType.dent,
         zone=zone,
         severity=Severity.medium,
         confidence=0.9,
@@ -1392,13 +1392,13 @@ def mock_gemini_client():
 def test_aggregate_returns_consolidated_damages(mock_gemini_client):
     aggregator = GeminiDamageAggregator(client=mock_gemini_client, model="gemini-2.5-flash")
     damage_lists = [
-        [make_damage("d1", VehicleZone.capot, "img_001")],
-        [make_damage("d2", VehicleZone.capot, "img_002")],
+        [make_damage("d1", VehicleZone.hood, "img_001")],
+        [make_damage("d2", VehicleZone.hood, "img_002")],
     ]
     result = aggregator.aggregate(damage_lists)
 
     assert len(result) == 1
-    assert result[0].zone == VehicleZone.capot
+    assert result[0].zone == VehicleZone.hood
     assert result[0].source_image_id == "img_001"
     assert "img_002" in result[0].also_seen_in
 
@@ -1557,8 +1557,8 @@ def client():
 def sample_damage():
     return Damage(
         id="dmg_01",
-        type=DamageType.abolladura,
-        zone=VehicleZone.capot,
+        type=DamageType.dent,
+        zone=VehicleZone.hood,
         severity=Severity.medium,
         confidence=0.91,
         bbox=BoundingBox(x=0.12, y=0.34, w=0.18, h=0.09),
@@ -2034,8 +2034,8 @@ IMAGE_ROW = {
 
 SAMPLE_DAMAGE = Damage(
     id="dmg_01",
-    type=DamageType.abolladura,
-    zone=VehicleZone.capot,
+    type=DamageType.dent,
+    zone=VehicleZone.hood,
     severity=Severity.medium,
     confidence=0.91,
     bbox=BoundingBox(x=0.12, y=0.34, w=0.18, h=0.09),
@@ -2239,15 +2239,15 @@ DAMAGE_MAP = DamageMap(
     session_id="sess-uuid-001",
     vehicle_context=None,
     images={"img-uuid-001": SourceImageMeta(url="https://example.com/car.jpg", width=3024, height=4032)},
-    zones={z: [] for z in VehicleZone} | {VehicleZone.capot: [SAMPLE_DAMAGE]},
+    zones={z: [] for z in VehicleZone} | {VehicleZone.hood: [SAMPLE_DAMAGE]},
     summary=DamageMapSummary(
         total_images=1,
         images_analyzed=1,
         total_damages=1,
-        zones_affected=[VehicleZone.capot],
+        zones_affected=[VehicleZone.hood],
         overall_severity=Severity.medium,
         damages_by_severity={Severity.medium: 1},
-        damages_by_type={DamageType.abolladura: 1},
+        damages_by_type={DamageType.dent: 1},
     ),
 )
 
