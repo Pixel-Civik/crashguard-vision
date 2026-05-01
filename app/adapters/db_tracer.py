@@ -21,6 +21,7 @@ class DbAnalysisTracer:
         response_tokens: int | None = None,
         error: str | None = None,
     ) -> str:
+        # raw_response intentionally excluded from logs; persisted to DB only
         logger.info(
             call_type,
             extra={
