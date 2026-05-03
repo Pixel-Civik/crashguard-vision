@@ -4,14 +4,12 @@ from functools import lru_cache
 from google import genai
 from supabase import create_client
 
+from app.application.use_cases.analyze_image import AnalyzeImageUseCase
+from app.application.use_cases.vision_sessions import VisionSessionUseCase
 from app.config import settings
-from app.db.supabase import SupabaseVisionRepository
-from app.adapters.gemini_analyzer import GeminiImageAnalyzer
-from app.adapters.gemini_aggregator import GeminiDamageAggregator
-from app.adapters.damage_map_builder import StandardDamageMapBuilder
-from app.adapters.db_tracer import SupabaseAnalysisTracer
-from app.services.analyze_service import AnalyzeService
-from app.services.session_service import SessionService
+from app.adapters.outbound.gemini import GeminiDamageAggregator, GeminiImageAnalyzer
+from app.adapters.outbound.supabase import DbAnalysisTracer, SupabaseVisionRepository
+from app.domain.services import DamageMapFactory
 
 
 @lru_cache
@@ -28,26 +26,30 @@ def _supabase_repo() -> SupabaseVisionRepository:
     )
 
 
-def get_analyze_service() -> AnalyzeService:
-    tracer = SupabaseAnalysisTracer(repo=_supabase_repo())
+def get_analyze_image_use_case() -> AnalyzeImageUseCase:
+    tracer = DbAnalysisTracer(repo=_supabase_repo())
     analyzer = GeminiImageAnalyzer(client=_gemini_client(), model=settings.gemini_model)
-    return AnalyzeService(
+    return AnalyzeImageUseCase(
         analyzer=analyzer,
         tracer=tracer,
         model_name=settings.gemini_model,
     )
 
 
-def get_session_service() -> SessionService:
-    tracer = SupabaseAnalysisTracer(repo=_supabase_repo())
+def get_vision_session_use_case() -> VisionSessionUseCase:
+    tracer = DbAnalysisTracer(repo=_supabase_repo())
     analyzer = GeminiImageAnalyzer(client=_gemini_client(), model=settings.gemini_model)
     aggregator = GeminiDamageAggregator(client=_gemini_client(), model=settings.gemini_model)
-    builder = StandardDamageMapBuilder()
-    return SessionService(
+    damage_map_builder = DamageMapFactory()
+    return VisionSessionUseCase(
         repo=_supabase_repo(),
         analyzer=analyzer,
         aggregator=aggregator,
-        builder=builder,
+        damage_map_builder=damage_map_builder,
         tracer=tracer,
         model_name=settings.gemini_model,
     )
+
+
+get_analyze_service = get_analyze_image_use_case
+get_session_service = get_vision_session_use_case

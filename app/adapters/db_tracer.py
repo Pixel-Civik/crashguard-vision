@@ -4,7 +4,7 @@ from app.domain.ports import VisionRepository
 logger = logging.getLogger("vision.tracer")
 
 
-class SupabaseAnalysisTracer:
+class DbAnalysisTracer:
     def __init__(self, repo: VisionRepository) -> None:
         self._repo = repo
 
@@ -48,3 +48,6 @@ class SupabaseAnalysisTracer:
             response_tokens=response_tokens,
             error=error,
         )
+
+
+SupabaseAnalysisTracer = DbAnalysisTracer

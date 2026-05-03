@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
+from app.application.dto import SessionImageAnalysisResult
 from app.main import app
 from app.dependencies import get_session_service
 from app.domain.models import (
@@ -115,7 +116,12 @@ def test_get_session_wrong_tenant(client):
 
 def test_add_image_to_session(client):
     mock_service = MagicMock()
-    mock_service.add_image.return_value = (IMAGE_ROW, [SAMPLE_DAMAGE], 3024, 4032)
+    mock_service.add_image.return_value = SessionImageAnalysisResult(
+        image_row=IMAGE_ROW,
+        damages=[SAMPLE_DAMAGE],
+        image_width=3024,
+        image_height=4032,
+    )
     app.dependency_overrides[get_session_service] = lambda: mock_service
     try:
         response = client.post(

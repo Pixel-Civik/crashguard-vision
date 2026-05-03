@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from app.domain.models import AnalysisSummary, Severity, DamageType
+from app.application.dto import ImageAnalysisResult
 
 
 def test_analyze_returns_damages(client, sample_damage):
@@ -8,10 +8,11 @@ def test_analyze_returns_damages(client, sample_damage):
     from app.dependencies import get_analyze_service
 
     mock_service = MagicMock()
-    mock_service.analyze.return_value = (
-        [sample_damage],
-        3024,
-        4032,
+    mock_service.execute.return_value = ImageAnalysisResult(
+        damages=[sample_damage],
+        image_width=3024,
+        image_height=4032,
+        processing_ms=12,
     )
 
     app.dependency_overrides[get_analyze_service] = lambda: mock_service

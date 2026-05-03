@@ -116,19 +116,3 @@ class DamageMap(BaseModel):
     zones: dict[VehicleZone, list[Damage]]
     summary: DamageMapSummary
 
-
-class AnalyzeResponse(BaseModel):
-    image_width: int
-    image_height: int
-    damages: list[Damage]
-    summary: AnalysisSummary
-
-
-class SessionImageResponse(BaseModel):
-    image_id: str
-    image_width: int
-    image_height: int
-    status: str
-    damages: list[Damage]
-    error: str | None = None
-    summary: AnalysisSummary | None = None
