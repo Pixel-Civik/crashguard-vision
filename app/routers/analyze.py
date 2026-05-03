@@ -3,12 +3,16 @@ import time
 from collections import Counter
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from app.auth import verify_api_key
+from app.auth import create_api_key_verifier
+from app.config import settings
 from app.domain.models import VehicleContext, AnalyzeResponse, AnalysisSummary
 from app.services.analyze_service import AnalyzeService
 from app.dependencies import get_analyze_service
 
 router = APIRouter()
+
+verify_api_key = create_api_key_verifier(settings.vision_api_key)
+
 
 
 class AnalyzeRequest(BaseModel):

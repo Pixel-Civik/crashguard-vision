@@ -7,7 +7,7 @@ from app.domain.models import (
 _SEVERITY_ORDER = {Severity.low: 0, Severity.medium: 1, Severity.high: 2}
 
 
-class PythonDamageMapBuilder:
+class StandardDamageMapBuilder:
     def build(
         self,
         damages: list[Damage],

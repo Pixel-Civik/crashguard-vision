@@ -1,29 +1,31 @@
 from __future__ import annotations
 import time
-from app.config import settings
-from app.db.supabase import VisionRepository
-from app.domain.ports import DamageAggregator, DamageMapBuilder, AnalysisTracer
+from app.domain.ports import (
+    DamageAggregator, DamageMapBuilder, AnalysisTracer,
+    VisionRepository, ImageAnalyzer,
+)
 from app.domain.models import (
     Damage, SourceImageMeta, VehicleContext, DamageMap,
     DamageMapSummary, SkippedImage, VehicleZone,
 )
-from app.adapters.gemini_analyzer import GeminiImageAnalyzer
 
 
 class SessionService:
     def __init__(
         self,
         repo: VisionRepository,
-        analyzer: GeminiImageAnalyzer,
+        analyzer: ImageAnalyzer,
         aggregator: DamageAggregator,
         builder: DamageMapBuilder,
         tracer: AnalysisTracer,
+        model_name: str,
     ) -> None:
         self._repo = repo
         self._analyzer = analyzer
         self._aggregator = aggregator
         self._builder = builder
         self._tracer = tracer
+        self._model_name = model_name
 
     def create_session(self, api_key_hash: str, vehicle_context: dict | None) -> dict:
         return self._repo.create_session(
@@ -73,7 +75,7 @@ class SessionService:
 
             call_id = self._tracer.record(
                 call_type="analyze_image",
-                model=settings.gemini_model,
+                model=self._model_name,
                 latency_ms=latency_ms,
                 status="success",
                 raw_response={},
@@ -95,7 +97,7 @@ class SessionService:
         except Exception as exc:
             self._tracer.record(
                 call_type="analyze_image",
-                model=settings.gemini_model,
+                model=self._model_name,
                 latency_ms=0,
                 status="error",
                 raw_response={},
@@ -149,7 +151,7 @@ class SessionService:
 
         self._tracer.record(
             call_type="aggregate_damages",
-            model=settings.gemini_model,
+            model=self._model_name,
             latency_ms=latency_ms,
             status="success",
             raw_response={},

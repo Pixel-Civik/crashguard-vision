@@ -2,7 +2,8 @@ from __future__ import annotations
 from collections import Counter
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from app.auth import verify_api_key
+from app.auth import create_api_key_verifier
+from app.config import settings
 from app.domain.models import (
     VehicleContext, DamageMap, AnalysisSummary, SessionImageResponse,
 )
@@ -10,6 +11,8 @@ from app.services.session_service import SessionService
 from app.dependencies import get_session_service
 
 router = APIRouter(prefix="/sessions")
+
+verify_api_key = create_api_key_verifier(settings.vision_api_key)
 
 
 class CreateSessionRequest(BaseModel):

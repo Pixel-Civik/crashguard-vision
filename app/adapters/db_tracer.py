@@ -1,10 +1,10 @@
 import logging
-from app.db.supabase import VisionRepository
+from app.domain.ports import VisionRepository
 
 logger = logging.getLogger("vision.tracer")
 
 
-class DbAnalysisTracer:
+class SupabaseAnalysisTracer:
     def __init__(self, repo: VisionRepository) -> None:
         self._repo = repo
 

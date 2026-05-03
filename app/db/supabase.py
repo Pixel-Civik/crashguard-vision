@@ -1,16 +1,12 @@
 from __future__ import annotations
 from datetime import datetime, timezone, timedelta
-from supabase import create_client, Client
-from app.config import settings
+from supabase import Client
 
 
-def get_client() -> Client:
-    return create_client(settings.supabase_url, settings.supabase_service_key)
-
-
-class VisionRepository:
-    def __init__(self, client: Client) -> None:
+class SupabaseVisionRepository:
+    def __init__(self, client: Client, session_ttl_hours: int) -> None:
         self._db = client
+        self._session_ttl_hours = session_ttl_hours
 
     # --- sessions ---
 
@@ -20,7 +16,7 @@ class VisionRepository:
         vehicle_context: dict | None,
     ) -> dict:
         expires_at = datetime.now(timezone.utc) + timedelta(
-            hours=settings.session_ttl_hours
+            hours=self._session_ttl_hours
         )
         result = (
             self._db.table("vision_sessions")
