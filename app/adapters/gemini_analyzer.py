@@ -1,11 +1,15 @@
 from __future__ import annotations
+import base64
 import io
 import json
+import re
 import httpx
 from PIL import Image
 from google import genai
 from google.genai import types
 from app.domain.models import Damage, BoundingBox, VehicleContext
+
+_DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;,]+)?(?:;base64)?,(?P<data>.*)$", re.DOTALL)
 
 
 _SYSTEM_PROMPT = """You are a vehicle damage assessor. Analyze the vehicle image and identify all visible damage.
@@ -28,9 +32,15 @@ class GeminiImageAnalyzer:
         self._model = model
 
     def _download_image(self, image_url: str) -> tuple[bytes, int, int, str]:
-        response = httpx.get(image_url, timeout=30, follow_redirects=False)
-        response.raise_for_status()
-        image_bytes = response.content
+        if image_url.startswith("data:"):
+            match = _DATA_URL_RE.match(image_url)
+            if not match:
+                raise ValueError("Invalid data URL")
+            image_bytes = base64.b64decode(match.group("data"))
+        else:
+            response = httpx.get(image_url, timeout=30, follow_redirects=False)
+            response.raise_for_status()
+            image_bytes = response.content
         if len(image_bytes) > 20 * 1024 * 1024:
             raise ValueError(f"Image too large: {len(image_bytes)} bytes")
         with Image.open(io.BytesIO(image_bytes)) as img:
