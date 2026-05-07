@@ -14,7 +14,7 @@ class ImageAnalyzer(Protocol):
         image_url: str,
         context: VehicleContext | None,
         source_image_id: str | None = None,
-    ) -> tuple[list[Damage], int, int]: ...
+    ) -> tuple[list[Damage], int, int, int | None, int | None]: ...
 
 
 class DamageAggregator(Protocol):

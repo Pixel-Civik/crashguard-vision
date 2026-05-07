@@ -95,7 +95,7 @@ class GeminiImageAnalyzer:
         image_url: str,
         context: VehicleContext | None,
     ) -> list[Damage]:
-        damages, _, _ = self.analyze_with_dimensions(image_url, context)
+        damages, _, _, _, _ = self.analyze_with_dimensions(image_url, context)
         return damages
 
     def analyze_with_dimensions(
@@ -103,7 +103,7 @@ class GeminiImageAnalyzer:
         image_url: str,
         context: VehicleContext | None,
         source_image_id: str | None = None,
-    ) -> tuple[list[Damage], int, int]:
+    ) -> tuple[list[Damage], int, int, int | None, int | None]:
         image_bytes, width, height, mime_type = self._download_image(image_url)
 
         response = self._client.models.generate_content(
@@ -119,4 +119,8 @@ class GeminiImageAnalyzer:
         )
 
         damages = self._parse_response(response.text, source_image_id)
-        return damages, width, height
+        
+        prompt_tokens = response.usage_metadata.prompt_token_count if response.usage_metadata else None
+        response_tokens = response.usage_metadata.candidates_token_count if response.usage_metadata else None
+        
+        return damages, width, height, prompt_tokens, response_tokens

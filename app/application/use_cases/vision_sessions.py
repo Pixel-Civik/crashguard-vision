@@ -75,7 +75,7 @@ class VisionSessionUseCase:
             context = VehicleContext(**context_dict) if context_dict else None
 
             t0 = time.monotonic()
-            damages, width, height = self._analyzer.analyze_with_dimensions(
+            damages, width, height, p_tokens, r_tokens = self._analyzer.analyze_with_dimensions(
                 image_url=image_url,
                 context=context,
                 source_image_id=image_id,
@@ -91,6 +91,8 @@ class VisionSessionUseCase:
                 raw_response={},
                 session_id=session_id,
                 image_id=image_id,
+                prompt_tokens=p_tokens,
+                response_tokens=r_tokens,
             )
             self._repo.update_image_completed(
                 image_id,
@@ -108,6 +110,8 @@ class VisionSessionUseCase:
                 damages=damages,
                 image_width=width,
                 image_height=height,
+                prompt_tokens=p_tokens,
+                response_tokens=r_tokens,
             )
         except Exception as exc:
             self._tracer.record(

@@ -25,7 +25,7 @@ class AnalyzeImageUseCase:
     ) -> ImageAnalysisResult:
         t0 = time.monotonic()
         try:
-            damages, width, height = self._analyzer.analyze_with_dimensions(
+            damages, width, height, p_tokens, r_tokens = self._analyzer.analyze_with_dimensions(
                 image_url=image_url,
                 context=vehicle_context,
             )
@@ -36,12 +36,16 @@ class AnalyzeImageUseCase:
                 latency_ms=processing_ms,
                 status="success",
                 raw_response={},
+                prompt_tokens=p_tokens,
+                response_tokens=r_tokens,
             )
             return ImageAnalysisResult(
                 damages=damages,
                 image_width=width,
                 image_height=height,
                 processing_ms=processing_ms,
+                prompt_tokens=p_tokens,
+                response_tokens=r_tokens,
             )
         except Exception as exc:
             processing_ms = int((time.monotonic() - t0) * 1000)

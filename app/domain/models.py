@@ -91,6 +91,8 @@ class AnalysisSummary(BaseModel):
     damages_by_severity: dict[Severity, int]
     damages_by_type: dict[DamageType, int]
     processing_ms: int
+    prompt_tokens: int | None = None
+    response_tokens: int | None = None
 
 
 class SkippedImage(BaseModel):
@@ -107,6 +109,9 @@ class DamageMapSummary(BaseModel):
     overall_severity: Severity
     damages_by_severity: dict[Severity, int]
     damages_by_type: dict[DamageType, int]
+    total_processing_ms: int = 0
+    total_prompt_tokens: int = 0
+    total_response_tokens: int = 0
 
 
 class DamageMap(BaseModel):

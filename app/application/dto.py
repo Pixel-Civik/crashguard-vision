@@ -8,6 +8,8 @@ class ImageAnalysisResult(BaseModel):
     image_width: int
     image_height: int
     processing_ms: int
+    prompt_tokens: int | None = None
+    response_tokens: int | None = None
 
 
 class SessionImageAnalysisResult(BaseModel):
@@ -15,3 +17,5 @@ class SessionImageAnalysisResult(BaseModel):
     damages: list[Damage]
     image_width: int
     image_height: int
+    prompt_tokens: int | None = None
+    response_tokens: int | None = None
