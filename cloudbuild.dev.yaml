@@ -24,7 +24,7 @@ steps:
       - --max-instances=10
       - --allow-unauthenticated
       - --service-account=$_SERVICE_ACCOUNT
-      - --set-env-vars=SUPABASE_URL=$_SUPABASE_URL
+      - --set-env-vars=^|^SUPABASE_URL=$_SUPABASE_URL|CORS_ALLOWED_ORIGINS=$_CORS_ALLOWED_ORIGINS
       - --set-secrets=GEMINI_API_KEY=crashguard-dev-gemini-api-key:latest,SUPABASE_SERVICE_KEY=crashguard-dev-supabase-secret-key:latest,VISION_API_KEY=crashguard-dev-vision-api-key:latest
 
 substitutions:
@@ -32,6 +32,7 @@ substitutions:
   _REPO: crashguard
   _SERVICE_ACCOUNT: crashguard-api@seguros-489903.iam.gserviceaccount.com
   _SUPABASE_URL: https://ybplacznbjrfpzptqjfp.supabase.co
+  _CORS_ALLOWED_ORIGINS: https://crashguarddev.pixelcivik.com
 
 options:
   logging: CLOUD_LOGGING_ONLY
