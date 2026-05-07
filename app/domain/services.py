@@ -20,6 +20,9 @@ class DamageMapFactory:
         images: dict[str, SourceImageMeta],
         session_id: str,
         vehicle_context: VehicleContext | None,
+        total_processing_ms: int = 0,
+        total_prompt_tokens: int = 0,
+        total_response_tokens: int = 0,
     ) -> DamageMap:
         zones: dict[VehicleZone, list[Damage]] = {z: [] for z in VehicleZone}
 
@@ -48,6 +51,9 @@ class DamageMapFactory:
                 overall_severity=overall_severity,
                 damages_by_severity=dict(severity_counts),
                 damages_by_type=dict(type_counts),
+                total_processing_ms=total_processing_ms,
+                total_prompt_tokens=total_prompt_tokens,
+                total_response_tokens=total_response_tokens,
             ),
         )
 

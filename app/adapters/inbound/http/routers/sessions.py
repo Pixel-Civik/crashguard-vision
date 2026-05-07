@@ -93,7 +93,13 @@ def get_report(
     use_case: VisionSessionUseCase = Depends(get_vision_session_use_case),
 ) -> DamageReportResponse:
     try:
-        return use_case.get_report(session_id=session_id, api_key_hash=api_key_hash)
+        from datetime import datetime, timezone
+        dmap = use_case.get_report(session_id=session_id, api_key_hash=api_key_hash)
+        return DamageReportResponse.from_domain(
+            dmap=dmap,
+            built_at=datetime.now(timezone.utc).isoformat(),
+            image_count=len(dmap.images),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except PermissionError:

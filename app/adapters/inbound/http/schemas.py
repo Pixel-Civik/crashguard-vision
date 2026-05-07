@@ -63,4 +63,23 @@ class SessionImageResponse(BaseModel):
     summary: AnalysisSummary | None = None
 
 
-DamageReportResponse = DamageMap
+class DamageReportResponse(BaseModel):
+    session_id: str
+    vehicle_context: VehicleContext | None = None
+    images: list[dict]
+    zones: dict[str, list[Damage]]
+    summary: dict
+    image_count: int
+    built_at: str
+
+    @classmethod
+    def from_domain(cls, dmap: DamageMap, built_at: str, image_count: int) -> "DamageReportResponse":
+        return cls(
+            session_id=dmap.session_id,
+            vehicle_context=dmap.vehicle_context,
+            images=[{"id": k, **v.model_dump()} for k, v in dmap.images.items()],
+            zones={k.value: v for k, v in dmap.zones.items()},
+            summary=dmap.summary.model_dump(),
+            image_count=image_count,
+            built_at=built_at,
+        )

@@ -142,17 +142,21 @@ class VisionSessionUseCase:
         completed_images = self._repo.get_completed_images(session_id)
         cached_map = self._repo.get_damage_map(session_id)
 
-        if cached_map and cached_map["image_count"] == len(completed_images):
-            return DamageMap(
-                session_id=session_id,
-                vehicle_context=session.get("vehicle_context"),
-                images={k: SourceImageMeta(**v) for k, v in cached_map["images"].items()},
-                zones={
-                    VehicleZone(k): [Damage(**d) for d in v]
-                    for k, v in cached_map["zones"].items()
-                },
-                summary=DamageMapSummary(**cached_map["summary"]),
-            )
+        if cached_map:
+            try:
+                if cached_map.get("image_count") == len(completed_images):
+                    return DamageMap(
+                        session_id=session_id,
+                        vehicle_context=session.get("vehicle_context"),
+                        images={k: SourceImageMeta(**v) for k, v in cached_map["images"].items()},
+                        zones={
+                            VehicleZone(k): [Damage(**d) for d in v]
+                            for k, v in cached_map["zones"].items()
+                        },
+                        summary=DamageMapSummary(**cached_map["summary"]),
+                    )
+            except Exception:
+                pass  # Fallback to re-aggregation if cache schema is incompatible
 
         images_meta = {
             row["id"]: SourceImageMeta(
@@ -182,11 +186,19 @@ class VisionSessionUseCase:
 
         context_dict = session.get("vehicle_context")
         context = VehicleContext(**context_dict) if context_dict else None
+
+        total_processing_ms = sum(row.get("processing_ms") or 0 for row in completed_images)
+        total_prompt_tokens = sum(row.get("prompt_tokens") or 0 for row in completed_images)
+        total_response_tokens = sum(row.get("response_tokens") or 0 for row in completed_images)
+
         damage_map = self._damage_map_builder.build(
             damages=aggregated,
             images=images_meta,
             session_id=session_id,
             vehicle_context=context,
+            total_processing_ms=total_processing_ms,
+            total_prompt_tokens=total_prompt_tokens,
+            total_response_tokens=total_response_tokens,
         )
 
         completed_ids = {row["id"] for row in completed_images}
