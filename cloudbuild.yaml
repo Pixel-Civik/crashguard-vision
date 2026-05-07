@@ -1,0 +1,42 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - -t
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$COMMIT_SHA'
+      - .
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - push
+      - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$COMMIT_SHA'
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - $_SERVICE
+      - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$COMMIT_SHA
+      - --region=$_REGION
+      - --platform=managed
+      - --min-instances=0
+      - --max-instances=10
+      - --allow-unauthenticated
+      - --service-account=$_SERVICE_ACCOUNT
+      - --set-env-vars=^|^SUPABASE_URL=$_SUPABASE_URL|CORS_ALLOWED_ORIGINS=$_CORS_ALLOWED_ORIGINS
+      - --set-secrets=GEMINI_API_KEY=crashguard-gemini-api-key:latest,SUPABASE_SERVICE_KEY=crashguard-supabase-secret-key:latest,VISION_API_KEY=crashguard-vision-api-key:latest
+
+substitutions:
+  _SERVICE: crashguard-vision
+  _REGION: us-east4
+  _REPO: crashguard
+  _SERVICE_ACCOUNT: crashguard-api@seguros-489903.iam.gserviceaccount.com
+  _SUPABASE_URL: https://otppptvxawpqvhgrbydm.supabase.co
+  _CORS_ALLOWED_ORIGINS: https://crashguard.pixelcivik.com
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+images:
+  - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/$_SERVICE:$COMMIT_SHA'
