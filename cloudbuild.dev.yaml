@@ -31,5 +31,8 @@ substitutions:
   _REPO: crashguard
   _SUPABASE_URL: https://ybplacznbjrfpzptqjfp.supabase.co
 
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 images:
   - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/crashguard-vision:$COMMIT_SHA'
