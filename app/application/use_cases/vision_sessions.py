@@ -110,6 +110,7 @@ class VisionSessionUseCase:
                 damages=damages,
                 image_width=width,
                 image_height=height,
+                processing_ms=latency_ms,
                 prompt_tokens=p_tokens,
                 response_tokens=r_tokens,
             )

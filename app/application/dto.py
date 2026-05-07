@@ -17,5 +17,6 @@ class SessionImageAnalysisResult(BaseModel):
     damages: list[Damage]
     image_width: int
     image_height: int
+    processing_ms: int | None = None
     prompt_tokens: int | None = None
     response_tokens: int | None = None
