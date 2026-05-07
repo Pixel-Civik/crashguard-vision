@@ -46,6 +46,16 @@ class GeminiImageAnalyzer:
         with Image.open(io.BytesIO(image_bytes)) as img:
             width, height = img.size
             mime_type = Image.MIME.get(img.format or "", "image/jpeg")
+            
+            supported_mimes = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+            if mime_type not in supported_mimes:
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                out_io = io.BytesIO()
+                img.save(out_io, format="JPEG", quality=90)
+                image_bytes = out_io.getvalue()
+                mime_type = "image/jpeg"
+                
         return image_bytes, width, height, mime_type
 
     def _build_prompt(self, context: VehicleContext | None) -> str:
