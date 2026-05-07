@@ -23,12 +23,14 @@ steps:
       - --min-instances=0
       - --max-instances=10
       - --allow-unauthenticated
+      - --service-account=$_SERVICE_ACCOUNT
       - --set-env-vars=SUPABASE_URL=$_SUPABASE_URL
       - --set-secrets=GEMINI_API_KEY=crashguard-dev-gemini-api-key:latest,SUPABASE_SERVICE_KEY=crashguard-dev-supabase-secret-key:latest,VISION_API_KEY=crashguard-dev-vision-api-key:latest
 
 substitutions:
   _REGION: us-east4
   _REPO: crashguard
+  _SERVICE_ACCOUNT: crashguard-api@seguros-489903.iam.gserviceaccount.com
   _SUPABASE_URL: https://ybplacznbjrfpzptqjfp.supabase.co
 
 options:
