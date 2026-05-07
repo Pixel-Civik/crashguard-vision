@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+import logging
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.adapters.inbound.http.schemas import AnalyzeImageRequest, AnalyzeImageResponse
 from app.application.use_cases.analyze_image import AnalyzeImageUseCase
@@ -16,8 +17,12 @@ def analyze(
     api_key_hash: str = Depends(verify_api_key),
     use_case: AnalyzeImageUseCase = Depends(get_analyze_image_use_case),
 ) -> AnalyzeImageResponse:
-    result = use_case.execute(
-        image_url=request.image_url,
-        vehicle_context=request.vehicle_context,
-    )
-    return AnalyzeImageResponse.from_result(result)
+    try:
+        result = use_case.execute(
+            image_url=request.image_url,
+            vehicle_context=request.vehicle_context,
+        )
+        return AnalyzeImageResponse.from_result(result)
+    except Exception as e:
+        logging.error(f"Error analyzing image: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
