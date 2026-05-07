@@ -24,10 +24,11 @@ steps:
       - --max-instances=10
       - --allow-unauthenticated
       - --service-account=$_SERVICE_ACCOUNT
-      - --set-env-vars=^|^SUPABASE_URL=$_SUPABASE_URL|CORS_ALLOWED_ORIGINS=$_CORS_ALLOWED_ORIGINS
+      - --set-env-vars=^|^SUPABASE_URL=$_SUPABASE_URL|CORS_ALLOWED_ORIGINS=$_CORS_ALLOWED_ORIGINS|GEMINI_MODEL=$_GEMINI_MODEL
       - --set-secrets=GEMINI_API_KEY=crashguard-dev-gemini-api-key:latest,SUPABASE_SERVICE_KEY=crashguard-dev-supabase-secret-key:latest,VISION_API_KEY=crashguard-dev-vision-api-key:latest
 
 substitutions:
+  _GEMINI_MODEL: gemini-3-flash-preview
   _REGION: us-east4
   _REPO: crashguard
   _SERVICE_ACCOUNT: crashguard-api@seguros-489903.iam.gserviceaccount.com
