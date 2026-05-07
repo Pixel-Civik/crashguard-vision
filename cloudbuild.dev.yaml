@@ -23,11 +23,13 @@ steps:
       - --min-instances=0
       - --max-instances=10
       - --allow-unauthenticated
-      - --set-secrets=GEMINI_API_KEY=GEMINI_API_KEY:latest,SUPABASE_URL=SUPABASE_URL:latest,SUPABASE_SERVICE_KEY=SUPABASE_SERVICE_KEY:latest,VISION_API_KEY=VISION_API_KEY:latest
+      - --set-env-vars=SUPABASE_URL=$_SUPABASE_URL
+      - --set-secrets=GEMINI_API_KEY=crashguard-dev-gemini-api-key:latest,SUPABASE_SERVICE_KEY=crashguard-dev-supabase-secret-key:latest,VISION_API_KEY=crashguard-dev-vision-api-key:latest
 
 substitutions:
   _REGION: us-central1
   _REPO: crashguard
+  _SUPABASE_URL: https://ybplacznbjrfpzptqjfp.supabase.co
 
 images:
   - '$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/crashguard-vision:$COMMIT_SHA'
