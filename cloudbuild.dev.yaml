@@ -16,7 +16,7 @@ steps:
     args:
       - run
       - deploy
-      - crashguard-vision
+      - crashguard-vision-dev
       - --image=$_REGION-docker.pkg.dev/$PROJECT_ID/$_REPO/crashguard-vision:$COMMIT_SHA
       - --region=$_REGION
       - --platform=managed
