@@ -33,6 +33,8 @@ class AnalyzeImageResponse(BaseModel):
                 damages_by_severity=dict(Counter(d.severity for d in result.damages)),
                 damages_by_type=dict(Counter(d.type for d in result.damages)),
                 processing_ms=result.processing_ms,
+                prompt_tokens=result.prompt_tokens,
+                response_tokens=result.response_tokens,
             ),
         )
 

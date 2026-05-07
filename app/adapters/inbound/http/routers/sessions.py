@@ -70,7 +70,9 @@ def add_image(
             total_damages=len(result.damages),
             damages_by_severity=dict(Counter(d.severity for d in result.damages)),
             damages_by_type=dict(Counter(d.type for d in result.damages)),
-            processing_ms=0,
+            processing_ms=result.processing_ms or 0,
+            prompt_tokens=result.prompt_tokens,
+            response_tokens=result.response_tokens,
         )
 
     return SessionImageResponse(
