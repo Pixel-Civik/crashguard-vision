@@ -37,7 +37,7 @@ class SupabaseVisionRepository:
             .maybe_single()
             .execute()
         )
-        return result.data
+        return result.data if result is not None else None
 
     # --- session images ---
 
@@ -117,7 +117,7 @@ class SupabaseVisionRepository:
             .maybe_single()
             .execute()
         )
-        return result.data
+        return result.data if result is not None else None
 
     def upsert_damage_map(
         self,

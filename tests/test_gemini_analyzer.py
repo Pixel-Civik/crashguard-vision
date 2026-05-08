@@ -78,12 +78,14 @@ def test_analyze_returns_image_dimensions(mock_gemini_client, mock_image_bytes):
         mock_get.return_value = mock_response
 
         analyzer = GeminiImageAnalyzer(client=mock_gemini_client, model="gemini-2.5-flash")
-        damages, width, height = analyzer.analyze_with_dimensions(
+        damages, width, height, prompt_tokens, response_tokens = analyzer.analyze_with_dimensions(
             image_url="https://example.com/car.jpg", context=None
         )
 
     assert width == 3024
     assert height == 4032
+    assert prompt_tokens == 100
+    assert response_tokens == 50
 
 
 def test_analyze_raises_on_malformed_gemini_response(mock_gemini_client, mock_image_bytes):
