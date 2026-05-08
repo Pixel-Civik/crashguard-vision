@@ -63,3 +63,8 @@ class VisionRepository(Protocol):
         session_id: str | None = None, image_id: str | None = None,
         prompt_tokens: int | None = None, response_tokens: int | None = None, error: str | None = None
     ) -> str: ...
+    def create_ai_usage_event(
+        self, call_id: str, call_type: str, model: str, latency_ms: int, status: str,
+        session_id: str | None = None, image_id: str | None = None,
+        prompt_tokens: int | None = None, response_tokens: int | None = None, error: str | None = None
+    ) -> None: ...

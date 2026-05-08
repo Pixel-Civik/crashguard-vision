@@ -22,6 +22,18 @@ def test_record_success_returns_call_id(mock_repo):
         image_id="img-001",
     )
     assert call_id == "call-uuid-123"
+    mock_repo.create_ai_usage_event.assert_called_once_with(
+        call_id="call-uuid-123",
+        call_type="analyze_image",
+        model="gemini-2.5-flash",
+        latency_ms=1200,
+        status="success",
+        session_id=None,
+        image_id="img-001",
+        prompt_tokens=None,
+        response_tokens=None,
+        error=None,
+    )
 
 
 def test_record_calls_repo_with_correct_args(mock_repo):
@@ -60,3 +72,23 @@ def test_record_emits_structured_log(mock_repo, caplog):
             raw_response={},
         )
     assert any("analyze_image" in r.message for r in caplog.records)
+
+
+def test_record_keeps_legacy_call_when_usage_event_fails(mock_repo, caplog):
+    mock_repo.create_ai_usage_event.side_effect = RuntimeError("usage failed")
+    tracer = DbAnalysisTracer(repo=mock_repo)
+
+    with caplog.at_level(logging.ERROR, logger="vision.tracer"):
+        call_id = tracer.record(
+            call_type="analyze_image",
+            model="gemini-2.5-flash",
+            latency_ms=500,
+            status="success",
+            raw_response={},
+        )
+
+    assert call_id == "call-uuid-123"
+    assert any(
+        "Failed to record canonical AI usage event" in r.message
+        for r in caplog.records
+    )

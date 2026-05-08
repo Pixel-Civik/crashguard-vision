@@ -36,7 +36,7 @@ class DbAnalysisTracer:
                 "error": error,
             },
         )
-        return self._repo.create_analysis_call(
+        call_id = self._repo.create_analysis_call(
             call_type=call_type,
             model=model,
             latency_ms=latency_ms,
@@ -48,6 +48,31 @@ class DbAnalysisTracer:
             response_tokens=response_tokens,
             error=error,
         )
+        try:
+            self._repo.create_ai_usage_event(
+                call_id=call_id,
+                call_type=call_type,
+                model=model,
+                latency_ms=latency_ms,
+                status=status,
+                session_id=session_id,
+                image_id=image_id,
+                prompt_tokens=prompt_tokens,
+                response_tokens=response_tokens,
+                error=error,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to record canonical AI usage event",
+                extra={
+                    "call_id": call_id,
+                    "call_type": call_type,
+                    "session_id": session_id,
+                    "image_id": image_id,
+                },
+            )
+
+        return call_id
 
 
 SupabaseAnalysisTracer = DbAnalysisTracer

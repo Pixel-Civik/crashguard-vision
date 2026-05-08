@@ -1,5 +1,6 @@
 from __future__ import annotations
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from supabase import Client
 
 
@@ -173,3 +174,133 @@ class SupabaseVisionRepository:
             .execute()
         )
         return result.data[0]["id"]
+
+    def create_ai_usage_event(
+        self,
+        call_id: str,
+        call_type: str,
+        model: str,
+        latency_ms: int,
+        status: str,
+        session_id: str | None = None,
+        image_id: str | None = None,
+        prompt_tokens: int | None = None,
+        response_tokens: int | None = None,
+        error: str | None = None,
+    ) -> None:
+        created_at = datetime.now(timezone.utc).isoformat()
+        pricing = self._find_model_pricing(
+            provider_key="google",
+            model=model,
+            api_version=None,
+            created_at=created_at,
+        )
+        estimated_cost = self._estimate_cost(
+            pricing=pricing,
+            input_tokens=prompt_tokens,
+            output_tokens=response_tokens,
+        )
+        phase_key = (
+            "vision_consolidation"
+            if call_type == "aggregate_damages"
+            else "vision_image_analysis"
+        )
+        outcome = self._map_usage_outcome(status)
+
+        self._db.table("ai_usage_events").insert({
+            "vision_session_id": session_id,
+            "vision_image_id": image_id,
+            "source_table": "vision_analysis_calls",
+            "source_id": call_id,
+            "service_key": "crashguard-vision",
+            "phase_key": phase_key,
+            "provider_key": "google",
+            "model": model,
+            "api_version": None,
+            "operation_key": call_type,
+            "input_tokens": prompt_tokens,
+            "output_tokens": response_tokens,
+            "latency_ms": latency_ms,
+            "attempt": 1,
+            "outcome": outcome,
+            "error_message": error,
+            "estimated_cost_usd": estimated_cost,
+            "pricing_snapshot_json": (
+                self._build_pricing_snapshot(pricing)
+                if pricing is not None
+                else {"status": "missing_pricing"}
+            ),
+            "response_metadata_json": {
+                "legacy_status": status,
+            },
+            "created_at": created_at,
+        }).execute()
+
+    def _find_model_pricing(
+        self,
+        provider_key: str,
+        model: str,
+        api_version: str | None,
+        created_at: str,
+    ) -> dict | None:
+        for candidate_api_version in (api_version, None):
+            query = (
+                self._db.table("ai_model_pricing")
+                .select("*")
+                .eq("provider_key", provider_key)
+                .eq("model", model)
+                .lte("effective_from", created_at)
+                .order("effective_from", desc=True)
+                .limit(10)
+            )
+
+            if candidate_api_version is None:
+                query = query.is_("api_version", "null")
+            else:
+                query = query.eq("api_version", candidate_api_version)
+
+            result = query.execute()
+            for row in result.data or []:
+                effective_to = row.get("effective_to")
+                if effective_to is None or effective_to > created_at:
+                    return row
+
+        return None
+
+    def _estimate_cost(
+        self,
+        pricing: dict | None,
+        input_tokens: int | None,
+        output_tokens: int | None,
+    ) -> str | None:
+        if pricing is None:
+            return None
+
+        input_rate = Decimal(str(pricing.get("input_usd_per_1m") or "0"))
+        output_rate = Decimal(str(pricing.get("output_usd_per_1m") or "0"))
+        cost = (
+            (Decimal(input_tokens or 0) / Decimal(1_000_000)) * input_rate
+            + (Decimal(output_tokens or 0) / Decimal(1_000_000)) * output_rate
+        )
+        return str(cost.quantize(Decimal("0.00000001"), rounding=ROUND_HALF_UP))
+
+    def _build_pricing_snapshot(self, pricing: dict) -> dict:
+        return {
+            "pricing_id": pricing.get("id"),
+            "provider_key": pricing.get("provider_key"),
+            "model": pricing.get("model"),
+            "api_version": pricing.get("api_version"),
+            "currency": pricing.get("currency"),
+            "input_usd_per_1m": pricing.get("input_usd_per_1m"),
+            "output_usd_per_1m": pricing.get("output_usd_per_1m"),
+            "cached_input_usd_per_1m": pricing.get("cached_input_usd_per_1m"),
+            "effective_from": pricing.get("effective_from"),
+            "effective_to": pricing.get("effective_to"),
+        }
+
+    def _map_usage_outcome(self, status: str) -> str:
+        if status == "success":
+            return "success"
+        if status == "timeout":
+            return "timeout"
+        return "failed"
