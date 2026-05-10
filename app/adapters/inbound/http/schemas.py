@@ -41,6 +41,11 @@ class AnalyzeImageResponse(BaseModel):
 
 class CreateVisionSessionRequest(BaseModel):
     vehicle_context: VehicleContext | None = None
+    tenant_id: str | None = None
+    inspection_id: str | None = None
+    capture_session_id: str | None = None
+    vehicle_id: str | None = None
+    mode: str | None = None
 
 
 class CreateVisionSessionResponse(BaseModel):
@@ -51,6 +56,8 @@ class CreateVisionSessionResponse(BaseModel):
 class AddSessionImageRequest(BaseModel):
     image_url: str
     angle: str | None = None
+    inspection_media_asset_id: str | None = None
+    inspection_item_id: str | None = None
 
 
 class SessionImageResponse(BaseModel):

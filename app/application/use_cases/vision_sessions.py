@@ -38,10 +38,24 @@ class VisionSessionUseCase:
         self._tracer = tracer
         self._model_name = model_name
 
-    def create_session(self, api_key_hash: str, vehicle_context: dict | None) -> dict:
+    def create_session(
+        self,
+        api_key_hash: str,
+        vehicle_context: dict | None,
+        tenant_id: str | None = None,
+        inspection_id: str | None = None,
+        capture_session_id: str | None = None,
+        vehicle_id: str | None = None,
+        mode: str | None = None,
+    ) -> dict:
         return self._repo.create_session(
             api_key_hash=api_key_hash,
             vehicle_context=vehicle_context,
+            tenant_id=tenant_id,
+            inspection_id=inspection_id,
+            capture_session_id=capture_session_id,
+            vehicle_id=vehicle_id,
+            mode=mode,
         )
 
     def get_session(self, session_id: str, api_key_hash: str) -> dict | None:
@@ -58,6 +72,8 @@ class VisionSessionUseCase:
         api_key_hash: str,
         image_url: str,
         angle: str | None,
+        inspection_media_asset_id: str | None = None,
+        inspection_item_id: str | None = None,
     ) -> SessionImageAnalysisResult:
         session = self.get_session(session_id, api_key_hash)
         if session is None:
@@ -67,6 +83,8 @@ class VisionSessionUseCase:
             session_id=session_id,
             image_url=image_url,
             angle=angle,
+            inspection_media_asset_id=inspection_media_asset_id,
+            inspection_item_id=inspection_item_id,
         )
         image_id = image_row["id"]
 

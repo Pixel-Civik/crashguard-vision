@@ -26,7 +26,15 @@ def create_session(
     use_case: VisionSessionUseCase = Depends(get_vision_session_use_case),
 ) -> CreateVisionSessionResponse:
     context_dict = request.vehicle_context.model_dump() if request.vehicle_context else None
-    session = use_case.create_session(api_key_hash=api_key_hash, vehicle_context=context_dict)
+    session = use_case.create_session(
+        api_key_hash=api_key_hash,
+        vehicle_context=context_dict,
+        tenant_id=request.tenant_id,
+        inspection_id=request.inspection_id,
+        capture_session_id=request.capture_session_id,
+        vehicle_id=request.vehicle_id,
+        mode=request.mode,
+    )
     return CreateVisionSessionResponse(session_id=session["id"], expires_at=session["expires_at"])
 
 
@@ -58,6 +66,8 @@ def add_image(
             api_key_hash=api_key_hash,
             image_url=request.image_url,
             angle=request.angle,
+            inspection_media_asset_id=request.inspection_media_asset_id,
+            inspection_item_id=request.inspection_item_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

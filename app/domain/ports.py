@@ -48,9 +48,25 @@ class AnalysisTracer(Protocol):
 
 
 class VisionRepository(Protocol):
-    def create_session(self, api_key_hash: str, vehicle_context: dict | None) -> dict: ...
+    def create_session(
+        self,
+        api_key_hash: str,
+        vehicle_context: dict | None,
+        tenant_id: str | None = None,
+        inspection_id: str | None = None,
+        capture_session_id: str | None = None,
+        vehicle_id: str | None = None,
+        mode: str | None = None,
+    ) -> dict: ...
     def get_session(self, session_id: str) -> dict | None: ...
-    def create_session_image(self, session_id: str, image_url: str, angle: str | None) -> dict: ...
+    def create_session_image(
+        self,
+        session_id: str,
+        image_url: str,
+        angle: str | None,
+        inspection_media_asset_id: str | None = None,
+        inspection_item_id: str | None = None,
+    ) -> dict: ...
     def update_image_analyzing(self, image_id: str, width: int, height: int) -> None: ...
     def update_image_completed(self, image_id: str, damages: list[dict], gemini_call_id: str) -> None: ...
     def update_image_failed(self, image_id: str, error: str) -> None: ...

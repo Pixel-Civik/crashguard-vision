@@ -76,6 +76,15 @@ def test_create_session(client):
     data = response.json()
     assert data["session_id"] == "sess-uuid-001"
     assert "expires_at" in data
+    mock_service.create_session.assert_called_once_with(
+        api_key_hash="test_key_hash",
+        vehicle_context={"make": "Toyota", "model": None, "year": None, "color": None},
+        tenant_id=None,
+        inspection_id=None,
+        capture_session_id=None,
+        vehicle_id=None,
+        mode=None,
+    )
 
 
 def test_create_session_no_context(client):
@@ -138,6 +147,14 @@ def test_add_image_to_session(client):
     assert data["image_width"] == 3024
     assert data["status"] == "completed"
     assert len(data["damages"]) == 1
+    mock_service.add_image.assert_called_once_with(
+        session_id="sess-uuid-001",
+        api_key_hash="test_key_hash",
+        image_url="https://example.com/car.jpg",
+        angle="front",
+        inspection_media_asset_id=None,
+        inspection_item_id=None,
+    )
 
 
 def test_add_image_session_not_found(client):
