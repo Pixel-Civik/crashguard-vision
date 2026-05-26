@@ -59,6 +59,13 @@ class VisionRepository(Protocol):
         mode: str | None = None,
     ) -> dict: ...
     def get_session(self, session_id: str) -> dict | None: ...
+    def validate_inspection_image_link(
+        self,
+        tenant_id: str,
+        inspection_id: str,
+        inspection_media_asset_id: str,
+        inspection_item_id: str,
+    ) -> bool: ...
     def create_session_image(
         self,
         session_id: str,

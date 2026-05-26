@@ -78,6 +78,11 @@ class VisionSessionUseCase:
         session = self.get_session(session_id, api_key_hash)
         if session is None:
             raise ValueError("Session not found")
+        self._validate_inspection_metadata(
+            session=session,
+            inspection_media_asset_id=inspection_media_asset_id,
+            inspection_item_id=inspection_item_id,
+        )
 
         image_row = self._repo.create_session_image(
             session_id=session_id,
@@ -235,3 +240,27 @@ class VisionSessionUseCase:
             image_count=len(completed_images),
         )
         return damage_map
+
+    def _validate_inspection_metadata(
+        self,
+        session: dict,
+        inspection_media_asset_id: str | None,
+        inspection_item_id: str | None,
+    ) -> None:
+        if inspection_media_asset_id is None and inspection_item_id is None:
+            return
+        if not inspection_media_asset_id or not inspection_item_id:
+            raise ValueError("Inspection image metadata must include both media asset and item ids")
+
+        tenant_id = session.get("tenant_id")
+        inspection_id = session.get("inspection_id")
+        if not tenant_id or not inspection_id:
+            raise ValueError("Inspection image metadata requires an inspection-linked session")
+
+        if not self._repo.validate_inspection_image_link(
+            tenant_id=tenant_id,
+            inspection_id=inspection_id,
+            inspection_media_asset_id=inspection_media_asset_id,
+            inspection_item_id=inspection_item_id,
+        ):
+            raise ValueError("Inspection image metadata does not match the Vision session")

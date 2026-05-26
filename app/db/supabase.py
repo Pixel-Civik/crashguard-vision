@@ -50,6 +50,25 @@ class SupabaseVisionRepository:
         )
         return result.data if result is not None else None
 
+    def validate_inspection_image_link(
+        self,
+        tenant_id: str,
+        inspection_id: str,
+        inspection_media_asset_id: str,
+        inspection_item_id: str,
+    ) -> bool:
+        result = (
+            self._db.table("inspection_media_assets")
+            .select("id")
+            .eq("id", inspection_media_asset_id)
+            .eq("tenant_id", tenant_id)
+            .eq("inspection_id", inspection_id)
+            .eq("inspection_item_id", inspection_item_id)
+            .limit(1)
+            .execute()
+        )
+        return bool(result.data if result is not None else None)
+
     # --- session images ---
 
     def create_session_image(

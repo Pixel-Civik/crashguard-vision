@@ -32,6 +32,43 @@ def test_get_session_returns_none_when_maybe_single_returns_none():
     assert repo.get_session("session-id") is None
 
 
+def test_validate_inspection_image_link_matches_asset_item_and_tenant():
+    result = MagicMock()
+    result.data = [{"id": "asset-1"}]
+    db = MagicMock()
+    db.table.return_value = _chain(result)
+    repo = SupabaseVisionRepository(client=db, session_ttl_hours=24)
+
+    assert repo.validate_inspection_image_link(
+        tenant_id="tenant-1",
+        inspection_id="inspection-1",
+        inspection_media_asset_id="asset-1",
+        inspection_item_id="item-1",
+    )
+
+    query = db.table.return_value
+    query.select.assert_called_once_with("id")
+    query.eq.assert_any_call("id", "asset-1")
+    query.eq.assert_any_call("tenant_id", "tenant-1")
+    query.eq.assert_any_call("inspection_id", "inspection-1")
+    query.eq.assert_any_call("inspection_item_id", "item-1")
+
+
+def test_validate_inspection_image_link_rejects_missing_match():
+    result = MagicMock()
+    result.data = []
+    db = MagicMock()
+    db.table.return_value = _chain(result)
+    repo = SupabaseVisionRepository(client=db, session_ttl_hours=24)
+
+    assert not repo.validate_inspection_image_link(
+        tenant_id="tenant-1",
+        inspection_id="inspection-1",
+        inspection_media_asset_id="asset-1",
+        inspection_item_id="item-1",
+    )
+
+
 def test_create_ai_usage_event_writes_canonical_usage_with_pricing():
     pricing_result = MagicMock()
     pricing_result.data = [
