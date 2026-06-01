@@ -48,6 +48,17 @@ class VisionSessionUseCase:
         vehicle_id: str | None = None,
         mode: str | None = None,
     ) -> dict:
+        normalized_mode = mode or "lab"
+        if tenant_id and inspection_id and normalized_mode == "inspection_damage_report":
+            existing = self._repo.find_active_inspection_session(
+                api_key_hash=api_key_hash,
+                tenant_id=tenant_id,
+                inspection_id=inspection_id,
+                mode=normalized_mode,
+            )
+            if existing is not None:
+                return existing
+
         return self._repo.create_session(
             api_key_hash=api_key_hash,
             vehicle_context=vehicle_context,
@@ -55,7 +66,7 @@ class VisionSessionUseCase:
             inspection_id=inspection_id,
             capture_session_id=capture_session_id,
             vehicle_id=vehicle_id,
-            mode=mode,
+            mode=normalized_mode,
         )
 
     def get_session(self, session_id: str, api_key_hash: str) -> dict | None:

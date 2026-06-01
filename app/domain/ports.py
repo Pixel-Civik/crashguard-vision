@@ -58,6 +58,13 @@ class VisionRepository(Protocol):
         vehicle_id: str | None = None,
         mode: str | None = None,
     ) -> dict: ...
+    def find_active_inspection_session(
+        self,
+        api_key_hash: str,
+        tenant_id: str,
+        inspection_id: str,
+        mode: str,
+    ) -> dict | None: ...
     def get_session(self, session_id: str) -> dict | None: ...
     def validate_inspection_image_link(
         self,

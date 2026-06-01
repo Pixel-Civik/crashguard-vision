@@ -40,6 +40,28 @@ class SupabaseVisionRepository:
         )
         return result.data[0]
 
+    def find_active_inspection_session(
+        self,
+        api_key_hash: str,
+        tenant_id: str,
+        inspection_id: str,
+        mode: str,
+    ) -> dict | None:
+        now = datetime.now(timezone.utc).isoformat()
+        result = (
+            self._db.table("vision_sessions")
+            .select("*")
+            .eq("api_key_hash", api_key_hash)
+            .eq("tenant_id", tenant_id)
+            .eq("inspection_id", inspection_id)
+            .eq("mode", mode)
+            .gt("expires_at", now)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return result.data[0] if result is not None and result.data else None
+
     def get_session(self, session_id: str) -> dict | None:
         result = (
             self._db.table("vision_sessions")
