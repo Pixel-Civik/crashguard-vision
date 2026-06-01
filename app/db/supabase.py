@@ -102,6 +102,11 @@ class SupabaseVisionRepository:
             "image_height": height,
         }).eq("id", image_id).execute()
 
+    def update_image_url(self, image_id: str, image_url: str) -> None:
+        self._db.table("vision_session_images").update({
+            "image_url": image_url,
+        }).eq("id", image_id).execute()
+
     def update_image_completed(
         self,
         image_id: str,
@@ -112,6 +117,7 @@ class SupabaseVisionRepository:
             "status": "completed",
             "damages": damages,
             "gemini_call_id": gemini_call_id,
+            "error": None,
             "analyzed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", image_id).execute()
 
@@ -120,6 +126,26 @@ class SupabaseVisionRepository:
             "status": "failed",
             "error": error,
         }).eq("id", image_id).execute()
+
+    def get_session_image(self, image_id: str) -> dict | None:
+        result = (
+            self._db.table("vision_session_images")
+            .select("*")
+            .eq("id", image_id)
+            .maybe_single()
+            .execute()
+        )
+        return result.data if result is not None else None
+
+    def get_session_images(self, session_id: str) -> list[dict]:
+        result = (
+            self._db.table("vision_session_images")
+            .select("*")
+            .eq("session_id", session_id)
+            .order("uploaded_at")
+            .execute()
+        )
+        return result.data
 
     def get_completed_images(self, session_id: str) -> list[dict]:
         result = (

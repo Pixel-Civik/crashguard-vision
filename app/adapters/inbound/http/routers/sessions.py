@@ -9,7 +9,9 @@ from app.adapters.inbound.http.schemas import (
     CreateVisionSessionRequest,
     CreateVisionSessionResponse,
     DamageReportResponse,
+    RetrySessionImageRequest,
     SessionImageResponse,
+    StoredSessionImageResponse,
 )
 from app.application.use_cases.vision_sessions import VisionSessionUseCase
 from app.auth import verify_api_key
@@ -17,6 +19,48 @@ from app.dependencies import get_vision_session_use_case
 from app.domain.models import AnalysisSummary
 
 router = APIRouter(prefix="/sessions")
+
+
+def _summary_from_result(result) -> AnalysisSummary | None:
+    if result.image_row["status"] != "completed":
+        return None
+    return AnalysisSummary(
+        total_damages=len(result.damages),
+        damages_by_severity=dict(Counter(d.severity for d in result.damages)),
+        damages_by_type=dict(Counter(d.type for d in result.damages)),
+        processing_ms=result.processing_ms or 0,
+        prompt_tokens=result.prompt_tokens,
+        response_tokens=result.response_tokens,
+    )
+
+
+def _result_to_response(result) -> SessionImageResponse:
+    return SessionImageResponse(
+        image_id=result.image_row["id"],
+        image_width=result.image_width,
+        image_height=result.image_height,
+        status=result.image_row["status"],
+        damages=result.damages,
+        error=result.image_row.get("error"),
+        summary=_summary_from_result(result),
+    )
+
+
+def _stored_image_to_response(row: dict) -> StoredSessionImageResponse:
+    return StoredSessionImageResponse(
+        image_id=row["id"],
+        image_url=row["image_url"],
+        angle=row.get("angle"),
+        image_width=row.get("image_width"),
+        image_height=row.get("image_height"),
+        status=row["status"],
+        damages=row.get("damages") or [],
+        error=row.get("error"),
+        uploaded_at=row.get("uploaded_at"),
+        analyzed_at=row.get("analyzed_at"),
+        inspection_media_asset_id=row.get("inspection_media_asset_id"),
+        inspection_item_id=row.get("inspection_item_id"),
+    )
 
 
 @router.post("", status_code=201, response_model=CreateVisionSessionResponse)
@@ -53,6 +97,22 @@ def get_session(
     return session
 
 
+@router.get("/{session_id}/images", response_model=list[StoredSessionImageResponse])
+def list_images(
+    session_id: str,
+    api_key_hash: str = Depends(verify_api_key),
+    use_case: VisionSessionUseCase = Depends(get_vision_session_use_case),
+) -> list[StoredSessionImageResponse]:
+    try:
+        images = use_case.list_images(session_id=session_id, api_key_hash=api_key_hash)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return [_stored_image_to_response(row) for row in images]
+
+
 @router.post("/{session_id}/images", status_code=201, response_model=SessionImageResponse)
 def add_image(
     session_id: str,
@@ -74,26 +134,29 @@ def add_image(
     except PermissionError:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    summary = None
-    if result.image_row["status"] == "completed":
-        summary = AnalysisSummary(
-            total_damages=len(result.damages),
-            damages_by_severity=dict(Counter(d.severity for d in result.damages)),
-            damages_by_type=dict(Counter(d.type for d in result.damages)),
-            processing_ms=result.processing_ms or 0,
-            prompt_tokens=result.prompt_tokens,
-            response_tokens=result.response_tokens,
-        )
+    return _result_to_response(result)
 
-    return SessionImageResponse(
-        image_id=result.image_row["id"],
-        image_width=result.image_width,
-        image_height=result.image_height,
-        status=result.image_row["status"],
-        damages=result.damages,
-        error=result.image_row.get("error"),
-        summary=summary,
-    )
+@router.post("/{session_id}/images/{image_id}/retry", response_model=SessionImageResponse)
+def retry_image(
+    session_id: str,
+    image_id: str,
+    request: RetrySessionImageRequest,
+    api_key_hash: str = Depends(verify_api_key),
+    use_case: VisionSessionUseCase = Depends(get_vision_session_use_case),
+) -> SessionImageResponse:
+    try:
+        result = use_case.retry_image(
+            session_id=session_id,
+            image_id=image_id,
+            api_key_hash=api_key_hash,
+            image_url=request.image_url,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return _result_to_response(result)
 
 
 @router.get("/{session_id}/report", response_model=DamageReportResponse)

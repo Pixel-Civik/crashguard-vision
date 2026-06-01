@@ -4,6 +4,7 @@ import uuid
 import pydantic
 from google import genai
 from google.genai import types
+from app.adapters.gemini_retry import call_gemini_with_retry
 from app.domain.models import Damage, BoundingBox
 
 
@@ -50,15 +51,17 @@ class GeminiDamageAggregator:
             for d in all_damages
         ], ensure_ascii=False)
 
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=[types.Part.from_text(
-                text=f"Consolidate these damages:\n{input_json}"
-            )],
-            config=types.GenerateContentConfig(
-                system_instruction=_SYSTEM_PROMPT,
-                response_mime_type="application/json",
-            ),
+        response = call_gemini_with_retry(
+            lambda: self._client.models.generate_content(
+                model=self._model,
+                contents=[types.Part.from_text(
+                    text=f"Consolidate these damages:\n{input_json}"
+                )],
+                config=types.GenerateContentConfig(
+                    system_instruction=_SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                ),
+            )
         )
 
         return self._parse_response(response.text)

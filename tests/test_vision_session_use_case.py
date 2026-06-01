@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.application.use_cases.vision_sessions import VisionSessionUseCase
+from app.domain.models import BoundingBox, Damage, DamageType, Severity, VehicleZone
 
 
 def _use_case(repo: MagicMock) -> VisionSessionUseCase:
@@ -89,3 +90,59 @@ def test_add_image_rejects_mismatched_inspection_metadata():
         inspection_item_id="item-1",
     )
     repo.create_session_image.assert_not_called()
+
+
+def test_retry_image_reuses_existing_failed_image_with_fresh_url():
+    repo = MagicMock()
+    analyzer = MagicMock()
+    tracer = MagicMock()
+    damage = Damage(
+        id="dmg_01",
+        type=DamageType.dent,
+        zone=VehicleZone.hood,
+        severity=Severity.medium,
+        confidence=0.9,
+        bbox=BoundingBox(x=0.1, y=0.1, w=0.2, h=0.2),
+        description="test",
+        source_image_id="image-1",
+    )
+    repo.get_session.return_value = {
+        "id": "session-1",
+        "api_key_hash": "hash-1",
+        "vehicle_context": None,
+    }
+    repo.get_session_image.return_value = {
+        "id": "image-1",
+        "session_id": "session-1",
+        "image_url": "https://old.example.com/car.jpg",
+        "status": "failed",
+        "error": "503 UNAVAILABLE",
+    }
+    analyzer.analyze_with_dimensions.return_value = ([damage], 100, 80, 10, 5)
+    tracer.record.return_value = "call-1"
+    use_case = VisionSessionUseCase(
+        repo=repo,
+        analyzer=analyzer,
+        aggregator=MagicMock(),
+        damage_map_builder=MagicMock(),
+        tracer=tracer,
+        model_name="gemini-test",
+    )
+
+    result = use_case.retry_image(
+        session_id="session-1",
+        image_id="image-1",
+        api_key_hash="hash-1",
+        image_url="https://fresh.example.com/car.jpg",
+    )
+
+    assert result.image_row["status"] == "completed"
+    assert result.damages == [damage]
+    repo.create_session_image.assert_not_called()
+    repo.update_image_url.assert_called_once_with("image-1", "https://fresh.example.com/car.jpg")
+    analyzer.analyze_with_dimensions.assert_called_once_with(
+        image_url="https://fresh.example.com/car.jpg",
+        context=None,
+        source_image_id="image-1",
+    )
+    repo.update_image_completed.assert_called_once()

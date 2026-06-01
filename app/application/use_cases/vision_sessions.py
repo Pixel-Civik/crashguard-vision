@@ -156,6 +156,35 @@ class VisionSessionUseCase:
                 image_height=0,
             )
 
+    def list_images(self, session_id: str, api_key_hash: str) -> list[dict]:
+        session = self.get_session(session_id, api_key_hash)
+        if session is None:
+            raise ValueError("Session not found")
+        return self._repo.get_session_images(session_id)
+
+    def retry_image(
+        self,
+        session_id: str,
+        image_id: str,
+        api_key_hash: str,
+        image_url: str | None = None,
+    ) -> SessionImageAnalysisResult:
+        session = self.get_session(session_id, api_key_hash)
+        if session is None:
+            raise ValueError("Session not found")
+
+        image_row = self._repo.get_session_image(image_id)
+        if image_row is None or image_row.get("session_id") != session_id:
+            raise ValueError("Image not found")
+        if image_row.get("status") != "failed":
+            raise ValueError("Only failed images can be retried")
+
+        if image_url:
+            self._repo.update_image_url(image_id, image_url)
+            image_row = {**image_row, "image_url": image_url}
+
+        return self._analyze_existing_image(session, image_row)
+
     def get_report(self, session_id: str, api_key_hash: str) -> DamageMap:
         session = self.get_session(session_id, api_key_hash)
         if session is None:
@@ -264,3 +293,76 @@ class VisionSessionUseCase:
             inspection_item_id=inspection_item_id,
         ):
             raise ValueError("Inspection image metadata does not match the Vision session")
+
+    def _analyze_existing_image(
+        self,
+        session: dict,
+        image_row: dict,
+    ) -> SessionImageAnalysisResult:
+        image_id = image_row["id"]
+        image_url = image_row["image_url"]
+        session_id = session["id"]
+
+        try:
+            context_dict = session.get("vehicle_context")
+            context = VehicleContext(**context_dict) if context_dict else None
+
+            t0 = time.monotonic()
+            damages, width, height, p_tokens, r_tokens = self._analyzer.analyze_with_dimensions(
+                image_url=image_url,
+                context=context,
+                source_image_id=image_id,
+            )
+            latency_ms = int((time.monotonic() - t0) * 1000)
+
+            self._repo.update_image_analyzing(image_id, width, height)
+            call_id = self._tracer.record(
+                call_type="analyze_image",
+                model=self._model_name,
+                latency_ms=latency_ms,
+                status="success",
+                raw_response={},
+                session_id=session_id,
+                image_id=image_id,
+                prompt_tokens=p_tokens,
+                response_tokens=r_tokens,
+            )
+            self._repo.update_image_completed(
+                image_id,
+                [damage.model_dump() for damage in damages],
+                call_id,
+            )
+
+            return SessionImageAnalysisResult(
+                image_row={
+                    **image_row,
+                    "status": "completed",
+                    "error": None,
+                    "image_width": width,
+                    "image_height": height,
+                },
+                damages=damages,
+                image_width=width,
+                image_height=height,
+                processing_ms=latency_ms,
+                prompt_tokens=p_tokens,
+                response_tokens=r_tokens,
+            )
+        except Exception as exc:
+            self._tracer.record(
+                call_type="analyze_image",
+                model=self._model_name,
+                latency_ms=0,
+                status="error",
+                raw_response={},
+                session_id=session_id,
+                image_id=image_id,
+                error=str(exc),
+            )
+            self._repo.update_image_failed(image_id, str(exc))
+            return SessionImageAnalysisResult(
+                image_row={**image_row, "status": "failed", "error": str(exc)},
+                damages=[],
+                image_width=0,
+                image_height=0,
+            )

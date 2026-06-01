@@ -60,6 +60,10 @@ class AddSessionImageRequest(BaseModel):
     inspection_item_id: str | None = None
 
 
+class RetrySessionImageRequest(BaseModel):
+    image_url: str | None = None
+
+
 class SessionImageResponse(BaseModel):
     image_id: str
     image_width: int
@@ -68,6 +72,21 @@ class SessionImageResponse(BaseModel):
     damages: list[Damage]
     error: str | None = None
     summary: AnalysisSummary | None = None
+
+
+class StoredSessionImageResponse(BaseModel):
+    image_id: str
+    image_url: str
+    angle: str | None = None
+    image_width: int | None = None
+    image_height: int | None = None
+    status: str
+    damages: list[Damage]
+    error: str | None = None
+    uploaded_at: str | None = None
+    analyzed_at: str | None = None
+    inspection_media_asset_id: str | None = None
+    inspection_item_id: str | None = None
 
 
 class DamageReportResponse(BaseModel):

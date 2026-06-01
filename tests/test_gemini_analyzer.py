@@ -99,3 +99,27 @@ def test_analyze_raises_on_malformed_gemini_response(mock_gemini_client, mock_im
         analyzer = GeminiImageAnalyzer(client=mock_gemini_client, model="gemini-2.5-flash")
         with pytest.raises(ValueError, match="non-JSON"):
             analyzer.analyze(image_url="https://example.com/car.jpg", context=None)
+
+
+def test_analyze_retries_transient_gemini_error(mock_gemini_client, mock_image_bytes):
+    response = MagicMock()
+    response.text = GEMINI_RESPONSE_JSON
+    response.usage_metadata = None
+    mock_gemini_client.models.generate_content.side_effect = [
+        RuntimeError("503 UNAVAILABLE. {'error': {'code': 503, 'status': 'UNAVAILABLE'}}"),
+        response,
+    ]
+
+    with patch("app.adapters.gemini_analyzer.httpx.get") as mock_get, patch(
+        "app.adapters.gemini_retry.time.sleep"
+    ):
+        mock_response = MagicMock()
+        mock_response.content = mock_image_bytes
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        analyzer = GeminiImageAnalyzer(client=mock_gemini_client, model="gemini-2.5-flash")
+        damages = analyzer.analyze(image_url="https://example.com/car.jpg", context=None)
+
+    assert len(damages) == 1
+    assert mock_gemini_client.models.generate_content.call_count == 2

@@ -7,6 +7,7 @@ import httpx
 from PIL import Image
 from google import genai
 from google.genai import types
+from app.adapters.gemini_retry import call_gemini_with_retry
 from app.domain.models import Damage, BoundingBox, VehicleContext
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;,]+)?(?:;base64)?,(?P<data>.*)$", re.DOTALL)
@@ -106,16 +107,18 @@ class GeminiImageAnalyzer:
     ) -> tuple[list[Damage], int, int, int | None, int | None]:
         image_bytes, width, height, mime_type = self._download_image(image_url)
 
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                types.Part.from_text(text=self._build_prompt(context)),
-            ],
-            config=types.GenerateContentConfig(
-                system_instruction=_SYSTEM_PROMPT,
-                response_mime_type="application/json",
-            ),
+        response = call_gemini_with_retry(
+            lambda: self._client.models.generate_content(
+                model=self._model,
+                contents=[
+                    types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                    types.Part.from_text(text=self._build_prompt(context)),
+                ],
+                config=types.GenerateContentConfig(
+                    system_instruction=_SYSTEM_PROMPT,
+                    response_mime_type="application/json",
+                ),
+            )
         )
 
         damages = self._parse_response(response.text, source_image_id)

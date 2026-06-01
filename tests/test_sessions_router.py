@@ -157,6 +157,59 @@ def test_add_image_to_session(client):
     )
 
 
+def test_list_session_images(client):
+    mock_service = MagicMock()
+    mock_service.list_images.return_value = [IMAGE_ROW]
+    app.dependency_overrides[get_session_service] = lambda: mock_service
+    try:
+        response = client.get(
+            "/sessions/sess-uuid-001/images",
+            headers={"x-vision-key": "test"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_session_service, None)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data[0]["image_id"] == "img-uuid-001"
+    assert data[0]["image_url"] == "https://example.com/car.jpg"
+    assert data[0]["status"] == "completed"
+    mock_service.list_images.assert_called_once_with(
+        session_id="sess-uuid-001",
+        api_key_hash="test_key_hash",
+    )
+
+
+def test_retry_failed_image(client):
+    mock_service = MagicMock()
+    mock_service.retry_image.return_value = SessionImageAnalysisResult(
+        image_row=IMAGE_ROW,
+        damages=[SAMPLE_DAMAGE],
+        image_width=3024,
+        image_height=4032,
+    )
+    app.dependency_overrides[get_session_service] = lambda: mock_service
+    try:
+        response = client.post(
+            "/sessions/sess-uuid-001/images/img-uuid-001/retry",
+            json={"image_url": "https://fresh.example.com/car.jpg"},
+            headers={"x-vision-key": "test"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_session_service, None)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["image_id"] == "img-uuid-001"
+    assert data["status"] == "completed"
+    mock_service.retry_image.assert_called_once_with(
+        session_id="sess-uuid-001",
+        image_id="img-uuid-001",
+        api_key_hash="test_key_hash",
+        image_url="https://fresh.example.com/car.jpg",
+    )
+
+
 def test_add_image_session_not_found(client):
     mock_service = MagicMock()
     mock_service.add_image.side_effect = ValueError("Session not found")
