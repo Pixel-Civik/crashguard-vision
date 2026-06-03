@@ -4,6 +4,7 @@ import pytest
 
 from app.application.use_cases.vision_sessions import VisionSessionUseCase
 from app.domain.models import BoundingBox, Damage, DamageType, Severity, VehicleZone
+from app.domain.services import DamageMapFactory
 
 
 def _use_case(repo: MagicMock) -> VisionSessionUseCase:
@@ -308,3 +309,117 @@ def test_retry_image_reuses_existing_failed_image_with_fresh_url():
         source_image_id="image-1",
     )
     repo.update_image_completed.assert_called_once()
+
+
+def test_force_retry_reanalyzes_completed_image_and_invalidates_damage_map():
+    repo = MagicMock()
+    analyzer = MagicMock()
+    tracer = MagicMock()
+    damage = Damage(
+        id="dmg_01",
+        type=DamageType.dent,
+        zone=VehicleZone.hood,
+        severity=Severity.medium,
+        confidence=0.9,
+        bbox=BoundingBox(x=0.1, y=0.1, w=0.2, h=0.2),
+        description="updated",
+        source_image_id="image-1",
+    )
+    repo.get_session.return_value = {
+        "id": "session-1",
+        "api_key_hash": "hash-1",
+        "vehicle_context": None,
+    }
+    repo.get_session_image.return_value = {
+        "id": "image-1",
+        "session_id": "session-1",
+        "image_url": "https://old.example.com/car.jpg",
+        "status": "completed",
+        "damages": [],
+    }
+    analyzer.analyze_with_dimensions.return_value = ([damage], 120, 90, 11, 7)
+    tracer.record.return_value = "call-1"
+    use_case = VisionSessionUseCase(
+        repo=repo,
+        analyzer=analyzer,
+        aggregator=MagicMock(),
+        damage_map_builder=MagicMock(),
+        tracer=tracer,
+        model_name="gemini-test",
+    )
+
+    result = use_case.retry_image(
+        session_id="session-1",
+        image_id="image-1",
+        api_key_hash="hash-1",
+        image_url="https://fresh.example.com/car.jpg",
+        force=True,
+    )
+
+    assert result.image_row["status"] == "completed"
+    assert result.damages == [damage]
+    repo.create_session_image.assert_not_called()
+    repo.delete_damage_map.assert_called_once_with("session-1")
+    repo.update_image_url.assert_called_once_with("image-1", "https://fresh.example.com/car.jpg")
+    analyzer.analyze_with_dimensions.assert_called_once_with(
+        image_url="https://fresh.example.com/car.jpg",
+        context=None,
+        source_image_id="image-1",
+    )
+
+
+def test_get_report_includes_aggregate_tokens_in_summary():
+    repo = MagicMock()
+    aggregator = MagicMock()
+    tracer = MagicMock()
+    damage = Damage(
+        id="dmg_01",
+        type=DamageType.dent,
+        zone=VehicleZone.hood,
+        severity=Severity.medium,
+        confidence=0.9,
+        bbox=BoundingBox(x=0.1, y=0.1, w=0.2, h=0.2),
+        description="test",
+        source_image_id="image-1",
+    )
+    repo.get_session.return_value = {
+        "id": "session-1",
+        "api_key_hash": "hash-1",
+        "vehicle_context": None,
+    }
+    repo.get_all_images.return_value = [
+        {
+            "id": "image-1",
+            "session_id": "session-1",
+            "image_url": "https://example.com/car.jpg",
+            "status": "completed",
+            "image_width": 100,
+            "image_height": 80,
+            "damages": [damage.model_dump()],
+            "processing_ms": 120,
+            "prompt_tokens": 10,
+            "response_tokens": 5,
+        }
+    ]
+    repo.get_completed_images.return_value = repo.get_all_images.return_value
+    repo.get_damage_map.return_value = None
+    aggregator.aggregate.return_value = [damage]
+    aggregator.get_last_usage.return_value = (30, 20)
+
+    use_case = VisionSessionUseCase(
+        repo=repo,
+        analyzer=MagicMock(),
+        aggregator=aggregator,
+        damage_map_builder=DamageMapFactory(),
+        tracer=tracer,
+        model_name="gemini-test",
+    )
+
+    report = use_case.get_report("session-1", "hash-1")
+
+    assert report.summary.total_prompt_tokens == 40
+    assert report.summary.total_response_tokens == 25
+    tracer.record.assert_called_once()
+    assert tracer.record.call_args.kwargs["call_type"] == "aggregate_damages"
+    assert tracer.record.call_args.kwargs["prompt_tokens"] == 30
+    assert tracer.record.call_args.kwargs["response_tokens"] == 20

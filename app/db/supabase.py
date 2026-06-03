@@ -219,6 +219,9 @@ class SupabaseVisionRepository:
         )
         return result.data if result is not None else None
 
+    def delete_damage_map(self, session_id: str) -> None:
+        self._db.table("vision_damage_maps").delete().eq("session_id", session_id).execute()
+
     def upsert_damage_map(
         self,
         session_id: str,

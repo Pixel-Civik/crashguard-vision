@@ -150,6 +150,7 @@ def retry_image(
             image_id=image_id,
             api_key_hash=api_key_hash,
             image_url=request.image_url,
+            force=request.force,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

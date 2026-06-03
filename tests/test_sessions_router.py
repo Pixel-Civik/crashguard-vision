@@ -207,6 +207,35 @@ def test_retry_failed_image(client):
         image_id="img-uuid-001",
         api_key_hash="test_key_hash",
         image_url="https://fresh.example.com/car.jpg",
+        force=False,
+    )
+
+
+def test_force_retry_image(client):
+    mock_service = MagicMock()
+    mock_service.retry_image.return_value = SessionImageAnalysisResult(
+        image_row=IMAGE_ROW,
+        damages=[SAMPLE_DAMAGE],
+        image_width=3024,
+        image_height=4032,
+    )
+    app.dependency_overrides[get_session_service] = lambda: mock_service
+    try:
+        response = client.post(
+            "/sessions/sess-uuid-001/images/img-uuid-001/retry",
+            json={"image_url": "https://fresh.example.com/car.jpg", "force": True},
+            headers={"x-vision-key": "test"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_session_service, None)
+
+    assert response.status_code == 200
+    mock_service.retry_image.assert_called_once_with(
+        session_id="sess-uuid-001",
+        image_id="img-uuid-001",
+        api_key_hash="test_key_hash",
+        image_url="https://fresh.example.com/car.jpg",
+        force=True,
     )
 
 

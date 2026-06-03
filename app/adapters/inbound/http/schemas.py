@@ -62,6 +62,7 @@ class AddSessionImageRequest(BaseModel):
 
 class RetrySessionImageRequest(BaseModel):
     image_url: str | None = None
+    force: bool = False
 
 
 class SessionImageResponse(BaseModel):

@@ -187,6 +187,7 @@ class VisionSessionUseCase:
         image_id: str,
         api_key_hash: str,
         image_url: str | None = None,
+        force: bool = False,
     ) -> SessionImageAnalysisResult:
         session = self.get_session(session_id, api_key_hash)
         if session is None:
@@ -195,12 +196,15 @@ class VisionSessionUseCase:
         image_row = self._repo.get_session_image(image_id)
         if image_row is None or image_row.get("session_id") != session_id:
             raise ValueError("Image not found")
-        if image_row.get("status") != "failed":
+        if image_row.get("status") != "failed" and not force:
             raise ValueError("Only failed images can be retried")
 
         if image_url:
             self._repo.update_image_url(image_id, image_url)
             image_row = {**image_row, "image_url": image_url}
+
+        if force:
+            self._repo.delete_damage_map(session_id)
 
         return self._analyze_existing_image(session, image_row)
 
@@ -268,8 +272,14 @@ class VisionSessionUseCase:
         context = VehicleContext(**context_dict) if context_dict else None
 
         total_processing_ms = sum(row.get("processing_ms") or 0 for row in completed_images)
-        total_prompt_tokens = sum(row.get("prompt_tokens") or 0 for row in completed_images)
-        total_response_tokens = sum(row.get("response_tokens") or 0 for row in completed_images)
+        total_prompt_tokens = (
+            sum(row.get("prompt_tokens") or 0 for row in completed_images)
+            + (aggregate_prompt_tokens or 0)
+        )
+        total_response_tokens = (
+            sum(row.get("response_tokens") or 0 for row in completed_images)
+            + (aggregate_response_tokens or 0)
+        )
 
         damage_map = self._damage_map_builder.build(
             damages=aggregated,

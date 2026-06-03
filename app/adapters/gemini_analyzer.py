@@ -9,12 +9,21 @@ from google import genai
 from google.genai import types
 from app.adapters.gemini_retry import call_gemini_with_retry
 from app.adapters.gemini_usage import gemini_token_usage
+from app.domain.damage_filters import is_non_damage_false_positive
 from app.domain.models import Damage, BoundingBox, VehicleContext
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;,]+)?(?:;base64)?,(?P<data>.*)$", re.DOTALL)
 
 
-_SYSTEM_PROMPT = """You are a vehicle damage assessor. Analyze the vehicle image and identify all visible damage.
+_SYSTEM_PROMPT = """You are a vehicle damage assessor. Analyze the vehicle image and identify only physical exterior vehicle damage.
+
+Include: dents, scratches, cracks, rust, broken glass, broken or missing exterior parts, and permanent stains on the vehicle surface.
+
+Exclude and do not report:
+- flat, deflated, underinflated, or low-pressure tires unless there is visible structural tire or rim damage such as a cut, tear, cracked rim, bent rim, or missing tire material
+- water, puddles, oil marks, dirt, dust, mud, leaves, bird droppings, organic debris, or temporary stains
+- reflections, shadows, glare, background objects, stickers, logos, labels, normal wear, or normal tire pressure conditions
+- anything on the ground, floor, road, sidewalk, or surrounding environment
 
 For each damage return a JSON object with:
 - type: one of [dent, scratch, crack, stain, rust, broken_glass, other]
@@ -24,6 +33,7 @@ For each damage return a JSON object with:
 - bbox_x, bbox_y, bbox_w, bbox_h: normalized bounding box [0-1], top-left origin
 - description: brief description
 
+Use "other" only for visible physical exterior vehicle damage that does not fit the other types. Never use "other" for tire pressure, dirt/debris, water/ground conditions, background objects, or image artifacts.
 Return a JSON array. If no damage found return [].
 """
 
@@ -75,7 +85,7 @@ class GeminiImageAnalyzer:
             raise ValueError(f"Expected JSON array from Gemini, got {type(items).__name__}: {raw[:200]!r}")
         damages = []
         for i, item in enumerate(items):
-            damages.append(Damage(
+            damage = Damage(
                 id=f"dmg_{i+1:02d}",
                 type=item.get("type", "other"),
                 zone=item.get("zone", "unknown"),
@@ -89,7 +99,9 @@ class GeminiImageAnalyzer:
                 ),
                 description=item.get("description", ""),
                 source_image_id=source_image_id,
-            ))
+            )
+            if not is_non_damage_false_positive(damage):
+                damages.append(damage)
         return damages
 
     def analyze(

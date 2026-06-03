@@ -6,6 +6,7 @@ from google import genai
 from google.genai import types
 from app.adapters.gemini_retry import call_gemini_with_retry
 from app.adapters.gemini_usage import gemini_token_usage
+from app.domain.damage_filters import is_non_damage_false_positive
 from app.domain.models import Damage, BoundingBox
 
 
@@ -14,11 +15,16 @@ You will receive a list of damages detected in multiple photos of the same vehic
 
 Your task:
 1. Identify which damages from different photos represent the same physical damage (seen from different angles)
-2. Return a deduplicated list. For each canonical damage, use the one with highest confidence as the base
-3. In "also_seen_in" list the source_image_id of other photos where the same damage appears
-4. If uncertain, do NOT merge (keep them separate)
+2. Remove false positives that are not physical exterior vehicle damage
+3. Return a deduplicated list. For each canonical damage, use the one with highest confidence as the base
+4. In "also_seen_in" list the source_image_id of other photos where the same damage appears
+5. If uncertain, do NOT merge (keep them separate)
 
 Rule: same damage = same zone + same type + similar bbox overlap
+Keep true low-severity damage. Do not remove a damage only because it is low severity.
+Exclude flat/deflated/underinflated tires unless there is visible structural tire or rim damage.
+Exclude water, puddles, oil marks, dirt, dust, mud, leaves, bird droppings, organic debris, temporary stains, reflections, shadows, glare, background objects, stickers, logos, labels, and anything on the ground/floor/road/environment.
+"other" must only represent visible physical exterior vehicle damage.
 
 Return a JSON array with the same fields as the input plus "also_seen_in": list of image_ids.
 If input is empty return [].
@@ -33,7 +39,12 @@ class GeminiDamageAggregator:
         self._last_response_tokens: int | None = None
 
     def aggregate(self, damage_lists: list[list[Damage]]) -> list[Damage]:
-        all_damages = [d for sublist in damage_lists for d in sublist]
+        all_damages = [
+            d
+            for sublist in damage_lists
+            for d in sublist
+            if not is_non_damage_false_positive(d)
+        ]
         if not all_damages:
             self._last_prompt_tokens = None
             self._last_response_tokens = None
@@ -89,7 +100,7 @@ class GeminiDamageAggregator:
         result = []
         for item in items:
             try:
-                result.append(Damage(
+                damage = Damage(
                     id=item.get("id") or str(uuid.uuid4()),
                     type=item.get("type", "other"),
                     zone=item.get("zone", "unknown"),
@@ -104,7 +115,9 @@ class GeminiDamageAggregator:
                     description=item.get("description", ""),
                     source_image_id=item.get("source_image_id"),
                     also_seen_in=item.get("also_seen_in", []),
-                ))
+                )
+                if not is_non_damage_false_positive(damage):
+                    result.append(damage)
             except pydantic.ValidationError as exc:
                 raise ValueError(f"Invalid damage data from Gemini: {item}") from exc
         return result
