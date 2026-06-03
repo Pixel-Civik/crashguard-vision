@@ -115,6 +115,24 @@ class SupabaseVisionRepository:
         )
         return result.data[0]
 
+    def find_session_image_for_inspection_asset(
+        self,
+        session_id: str,
+        inspection_media_asset_id: str,
+        inspection_item_id: str,
+    ) -> dict | None:
+        result = (
+            self._db.table("vision_session_images")
+            .select("*")
+            .eq("session_id", session_id)
+            .eq("inspection_media_asset_id", inspection_media_asset_id)
+            .eq("inspection_item_id", inspection_item_id)
+            .order("uploaded_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return result.data[0] if result is not None and result.data else None
+
     def update_image_analyzing(
         self, image_id: str, width: int, height: int
     ) -> None:
@@ -183,7 +201,7 @@ class SupabaseVisionRepository:
     def get_all_images(self, session_id: str) -> list[dict]:
         result = (
             self._db.table("vision_session_images")
-            .select("id, status, error")
+            .select("id, status, error, inspection_media_asset_id, inspection_item_id, uploaded_at, analyzed_at")
             .eq("session_id", session_id)
             .execute()
         )

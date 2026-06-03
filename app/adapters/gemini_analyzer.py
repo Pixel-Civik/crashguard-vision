@@ -8,6 +8,7 @@ from PIL import Image
 from google import genai
 from google.genai import types
 from app.adapters.gemini_retry import call_gemini_with_retry
+from app.adapters.gemini_usage import gemini_token_usage
 from app.domain.models import Damage, BoundingBox, VehicleContext
 
 _DATA_URL_RE = re.compile(r"^data:(?P<mime>[^;,]+)?(?:;base64)?,(?P<data>.*)$", re.DOTALL)
@@ -123,7 +124,6 @@ class GeminiImageAnalyzer:
 
         damages = self._parse_response(response.text, source_image_id)
         
-        prompt_tokens = response.usage_metadata.prompt_token_count if response.usage_metadata else None
-        response_tokens = response.usage_metadata.candidates_token_count if response.usage_metadata else None
+        prompt_tokens, response_tokens = gemini_token_usage(response.usage_metadata)
         
         return damages, width, height, prompt_tokens, response_tokens

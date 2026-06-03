@@ -161,6 +161,99 @@ def test_add_image_rejects_mismatched_inspection_metadata():
     repo.create_session_image.assert_not_called()
 
 
+def test_add_image_reuses_existing_completed_inspection_image():
+    repo = MagicMock()
+    analyzer = MagicMock()
+    tracer = MagicMock()
+    repo.get_session.return_value = {
+        "id": "session-1",
+        "api_key_hash": "hash-1",
+        "tenant_id": "tenant-1",
+        "inspection_id": "inspection-1",
+    }
+    repo.validate_inspection_image_link.return_value = True
+    repo.find_session_image_for_inspection_asset.return_value = {
+        "id": "image-1",
+        "session_id": "session-1",
+        "image_url": "https://example.com/car.jpg",
+        "status": "completed",
+        "image_width": 100,
+        "image_height": 80,
+        "damages": [
+            {
+                "id": "dmg_01",
+                "type": "dent",
+                "zone": "hood",
+                "severity": "low",
+                "confidence": 0.82,
+                "bbox": {"x": 0.1, "y": 0.1, "w": 0.2, "h": 0.2},
+                "description": "small dent",
+                "source_image_id": "image-1",
+            }
+        ],
+    }
+    use_case = VisionSessionUseCase(
+        repo=repo,
+        analyzer=analyzer,
+        aggregator=MagicMock(),
+        damage_map_builder=MagicMock(),
+        tracer=tracer,
+        model_name="gemini-test",
+    )
+
+    result = use_case.add_image(
+        session_id="session-1",
+        api_key_hash="hash-1",
+        image_url="https://example.com/car.jpg",
+        angle="front",
+        inspection_media_asset_id="asset-1",
+        inspection_item_id="item-1",
+    )
+
+    assert result.image_row["id"] == "image-1"
+    assert result.image_row["status"] == "completed"
+    assert result.image_width == 100
+    assert result.image_height == 80
+    assert len(result.damages) == 1
+    repo.create_session_image.assert_not_called()
+    analyzer.analyze_with_dimensions.assert_not_called()
+    tracer.record.assert_not_called()
+
+
+def test_add_image_reuses_existing_failed_inspection_image_without_duplicate():
+    repo = MagicMock()
+    repo.get_session.return_value = {
+        "id": "session-1",
+        "api_key_hash": "hash-1",
+        "tenant_id": "tenant-1",
+        "inspection_id": "inspection-1",
+    }
+    repo.validate_inspection_image_link.return_value = True
+    repo.find_session_image_for_inspection_asset.return_value = {
+        "id": "image-1",
+        "session_id": "session-1",
+        "image_url": "https://example.com/car.jpg",
+        "status": "failed",
+        "error": "503 UNAVAILABLE",
+    }
+    use_case = _use_case(repo)
+
+    result = use_case.add_image(
+        session_id="session-1",
+        api_key_hash="hash-1",
+        image_url="https://example.com/car.jpg",
+        angle="front",
+        inspection_media_asset_id="asset-1",
+        inspection_item_id="item-1",
+    )
+
+    assert result.image_row["id"] == "image-1"
+    assert result.image_row["status"] == "failed"
+    assert result.image_row["error"] == "503 UNAVAILABLE"
+    assert result.damages == []
+    repo.create_session_image.assert_not_called()
+
+
 def test_retry_image_reuses_existing_failed_image_with_fresh_url():
     repo = MagicMock()
     analyzer = MagicMock()

@@ -15,6 +15,8 @@ def mock_gemini_client():
     usage = MagicMock()
     usage.prompt_token_count = 100
     usage.candidates_token_count = 50
+    usage.thoughts_token_count = 30
+    usage.total_token_count = 180
     response.usage_metadata = usage
     client.models.generate_content.return_value = response
     return client
@@ -85,7 +87,7 @@ def test_analyze_returns_image_dimensions(mock_gemini_client, mock_image_bytes):
     assert width == 3024
     assert height == 4032
     assert prompt_tokens == 100
-    assert response_tokens == 50
+    assert response_tokens == 80
 
 
 def test_analyze_raises_on_malformed_gemini_response(mock_gemini_client, mock_image_bytes):

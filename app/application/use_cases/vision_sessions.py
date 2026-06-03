@@ -94,6 +94,14 @@ class VisionSessionUseCase:
             inspection_media_asset_id=inspection_media_asset_id,
             inspection_item_id=inspection_item_id,
         )
+        if inspection_media_asset_id and inspection_item_id:
+            existing = self._repo.find_session_image_for_inspection_asset(
+                session_id=session_id,
+                inspection_media_asset_id=inspection_media_asset_id,
+                inspection_item_id=inspection_item_id,
+            )
+            if isinstance(existing, dict):
+                return self._result_from_stored_image(existing)
 
         image_row = self._repo.create_session_image(
             session_id=session_id,
@@ -171,7 +179,7 @@ class VisionSessionUseCase:
         session = self.get_session(session_id, api_key_hash)
         if session is None:
             raise ValueError("Session not found")
-        return self._repo.get_session_images(session_id)
+        return self._dedupe_session_image_rows(self._repo.get_session_images(session_id))
 
     def retry_image(
         self,
@@ -201,8 +209,10 @@ class VisionSessionUseCase:
         if session is None:
             raise ValueError("Session not found")
 
-        all_images = self._repo.get_all_images(session_id)
-        completed_images = self._repo.get_completed_images(session_id)
+        all_images = self._dedupe_session_image_rows(self._repo.get_all_images(session_id))
+        completed_images = self._dedupe_session_image_rows(
+            self._repo.get_completed_images(session_id)
+        )
         cached_map = self._repo.get_damage_map(session_id)
 
         if cached_map:
@@ -238,6 +248,11 @@ class VisionSessionUseCase:
         t0 = time.monotonic()
         aggregated = self._aggregator.aggregate(damage_lists)
         latency_ms = int((time.monotonic() - t0) * 1000)
+        aggregate_prompt_tokens = None
+        aggregate_response_tokens = None
+        get_aggregate_usage = getattr(self._aggregator, "get_last_usage", None)
+        if callable(get_aggregate_usage):
+            aggregate_prompt_tokens, aggregate_response_tokens = get_aggregate_usage()
         self._tracer.record(
             call_type="aggregate_damages",
             model=self._model_name,
@@ -245,6 +260,8 @@ class VisionSessionUseCase:
             status="success",
             raw_response={},
             session_id=session_id,
+            prompt_tokens=aggregate_prompt_tokens,
+            response_tokens=aggregate_response_tokens,
         )
 
         context_dict = session.get("vehicle_context")
@@ -304,6 +321,67 @@ class VisionSessionUseCase:
             inspection_item_id=inspection_item_id,
         ):
             raise ValueError("Inspection image metadata does not match the Vision session")
+
+    def _dedupe_session_image_rows(self, rows: list[dict]) -> list[dict]:
+        by_key: dict[str, dict] = {}
+        passthrough: list[dict] = []
+        for row in rows:
+            key = self._session_image_dedupe_key(row)
+            if key is None:
+                passthrough.append(row)
+                continue
+            current = by_key.get(key)
+            if current is None or self._should_replace_session_image_row(current, row):
+                by_key[key] = row
+        return [*by_key.values(), *passthrough]
+
+    def _session_image_dedupe_key(self, row: dict) -> str | None:
+        media_asset_id = row.get("inspection_media_asset_id")
+        inspection_item_id = row.get("inspection_item_id")
+        if media_asset_id:
+            return f"asset:{media_asset_id}"
+        if inspection_item_id:
+            return f"item:{inspection_item_id}"
+        return None
+
+    def _should_replace_session_image_row(self, current: dict, candidate: dict) -> bool:
+        current_rank = self._session_image_status_rank(current.get("status"))
+        candidate_rank = self._session_image_status_rank(candidate.get("status"))
+        if candidate_rank != current_rank:
+            return candidate_rank > current_rank
+        current_time = str(current.get("analyzed_at") or current.get("uploaded_at") or "")
+        candidate_time = str(candidate.get("analyzed_at") or candidate.get("uploaded_at") or "")
+        return candidate_time > current_time
+
+    def _session_image_status_rank(self, status: str | None) -> int:
+        if status == "completed":
+            return 4
+        if status == "analyzing":
+            return 3
+        if status == "pending":
+            return 2
+        if status == "failed":
+            return 1
+        return 0
+
+    def _result_from_stored_image(self, image_row: dict) -> SessionImageAnalysisResult:
+        damages = []
+        if image_row.get("status") == "completed":
+            for item in image_row.get("damages") or []:
+                try:
+                    damages.append(Damage(**item))
+                except Exception:
+                    continue
+
+        return SessionImageAnalysisResult(
+            image_row=image_row,
+            damages=damages,
+            image_width=image_row.get("image_width") or 0,
+            image_height=image_row.get("image_height") or 0,
+            processing_ms=0,
+            prompt_tokens=0,
+            response_tokens=0,
+        )
 
     def _analyze_existing_image(
         self,

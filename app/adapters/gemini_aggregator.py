@@ -5,6 +5,7 @@ import pydantic
 from google import genai
 from google.genai import types
 from app.adapters.gemini_retry import call_gemini_with_retry
+from app.adapters.gemini_usage import gemini_token_usage
 from app.domain.models import Damage, BoundingBox
 
 
@@ -28,10 +29,14 @@ class GeminiDamageAggregator:
     def __init__(self, client: genai.Client, model: str) -> None:
         self._client = client
         self._model = model
+        self._last_prompt_tokens: int | None = None
+        self._last_response_tokens: int | None = None
 
     def aggregate(self, damage_lists: list[list[Damage]]) -> list[Damage]:
         all_damages = [d for sublist in damage_lists for d in sublist]
         if not all_damages:
+            self._last_prompt_tokens = None
+            self._last_response_tokens = None
             return []
 
         input_json = json.dumps([
@@ -64,7 +69,13 @@ class GeminiDamageAggregator:
             )
         )
 
+        self._last_prompt_tokens, self._last_response_tokens = gemini_token_usage(
+            response.usage_metadata
+        )
         return self._parse_response(response.text)
+
+    def get_last_usage(self) -> tuple[int | None, int | None]:
+        return self._last_prompt_tokens, self._last_response_tokens
 
     def _parse_response(self, raw: str | None) -> list[Damage]:
         if raw is None:

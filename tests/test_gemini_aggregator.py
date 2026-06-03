@@ -30,6 +30,8 @@ def mock_gemini_client():
     usage = MagicMock()
     usage.prompt_token_count = 200
     usage.candidates_token_count = 80
+    usage.thoughts_token_count = 25
+    usage.total_token_count = 305
     response.usage_metadata = usage
     client.models.generate_content.return_value = response
     return client
@@ -47,6 +49,7 @@ def test_aggregate_returns_consolidated_damages(mock_gemini_client):
     assert result[0].zone == VehicleZone.hood
     assert result[0].source_image_id == "img_001"
     assert "img_002" in result[0].also_seen_in
+    assert aggregator.get_last_usage() == (200, 105)
 
 
 def test_aggregate_empty_input(mock_gemini_client):
