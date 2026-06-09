@@ -308,8 +308,13 @@ class SupabaseVisionRepository:
             else "vision_image_analysis"
         )
         outcome = self._map_usage_outcome(status)
+        usage_context = self._get_usage_context(session_id=session_id, image_id=image_id)
 
         self._db.table("ai_usage_events").insert({
+            "tenant_id": usage_context["tenant_id"],
+            "inspection_id": usage_context["inspection_id"],
+            "capture_session_id": usage_context["capture_session_id"],
+            "media_asset_id": usage_context["media_asset_id"],
             "vision_session_id": session_id,
             "vision_image_id": image_id,
             "source_table": "vision_analysis_calls",
@@ -332,11 +337,43 @@ class SupabaseVisionRepository:
                 if pricing is not None
                 else {"status": "missing_pricing"}
             ),
+            "request_metadata_json": {
+                "vision_mode": usage_context["vision_mode"],
+                "vehicle_id": usage_context["vehicle_id"],
+                "inspection_item_id": usage_context["inspection_item_id"],
+            },
             "response_metadata_json": {
                 "legacy_status": status,
+                "output_tokens_include_thinking": True,
             },
             "created_at": created_at,
         }).execute()
+
+    def _get_usage_context(
+        self,
+        session_id: str | None,
+        image_id: str | None,
+    ) -> dict[str, str | None]:
+        session = None
+        image = None
+        try:
+            session = self.get_session(session_id) if session_id else None
+        except Exception:
+            session = None
+        try:
+            image = self.get_session_image(image_id) if image_id else None
+        except Exception:
+            image = None
+
+        return {
+            "tenant_id": session.get("tenant_id") if session else None,
+            "inspection_id": session.get("inspection_id") if session else None,
+            "capture_session_id": session.get("capture_session_id") if session else None,
+            "vehicle_id": session.get("vehicle_id") if session else None,
+            "vision_mode": session.get("mode") if session else None,
+            "media_asset_id": image.get("inspection_media_asset_id") if image else None,
+            "inspection_item_id": image.get("inspection_item_id") if image else None,
+        }
 
     def _find_model_pricing(
         self,

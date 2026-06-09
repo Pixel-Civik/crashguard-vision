@@ -49,7 +49,12 @@ class VisionSessionUseCase:
         mode: str | None = None,
     ) -> dict:
         normalized_mode = mode or "lab"
-        if tenant_id and inspection_id and normalized_mode == "inspection_damage_report":
+        if (
+            tenant_id
+            and inspection_id
+            and normalized_mode
+            in {"inspection_damage_report", "vision_lab_inspection"}
+        ):
             existing = self._repo.find_active_inspection_session(
                 api_key_hash=api_key_hash,
                 tenant_id=tenant_id,

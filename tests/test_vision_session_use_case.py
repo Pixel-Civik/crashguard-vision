@@ -51,6 +51,39 @@ def test_create_inspection_session_reuses_active_session():
     repo.create_session.assert_not_called()
 
 
+def test_create_lab_inspection_session_reuses_only_lab_mode():
+    repo = MagicMock()
+    existing = {
+        "id": "lab-session-existing",
+        "api_key_hash": "hash-1",
+        "tenant_id": "tenant-1",
+        "inspection_id": "inspection-1",
+        "mode": "vision_lab_inspection",
+        "expires_at": "2026-06-02T20:00:00+00:00",
+    }
+    repo.find_active_inspection_session.return_value = existing
+    use_case = _use_case(repo)
+
+    result = use_case.create_session(
+        api_key_hash="hash-1",
+        vehicle_context={"make": "Toyota"},
+        tenant_id="tenant-1",
+        inspection_id="inspection-1",
+        capture_session_id="capture-1",
+        vehicle_id="vehicle-1",
+        mode="vision_lab_inspection",
+    )
+
+    assert result == existing
+    repo.find_active_inspection_session.assert_called_once_with(
+        api_key_hash="hash-1",
+        tenant_id="tenant-1",
+        inspection_id="inspection-1",
+        mode="vision_lab_inspection",
+    )
+    repo.create_session.assert_not_called()
+
+
 def test_create_inspection_session_creates_when_no_active_session():
     repo = MagicMock()
     created = {

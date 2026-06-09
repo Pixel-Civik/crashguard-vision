@@ -88,12 +88,24 @@ def test_create_ai_usage_event_writes_canonical_usage_with_pricing():
     insert_result = MagicMock()
     insert_result.data = [{"id": "usage-1"}]
     pricing_chain = _chain(pricing_result)
+    session_result = MagicMock()
+    session_result.data = {
+        "id": "session-1",
+        "tenant_id": "tenant-1",
+        "inspection_id": "inspection-1",
+        "capture_session_id": "capture-1",
+        "vehicle_id": "vehicle-1",
+        "mode": "inspection_damage_report",
+    }
+    session_chain = _chain(session_result)
     usage_table = MagicMock()
     usage_table.insert.return_value = _chain(insert_result)
     db = MagicMock()
-    db.table.side_effect = lambda table: (
-        pricing_chain if table == "ai_model_pricing" else usage_table
-    )
+    db.table.side_effect = lambda table: {
+        "ai_model_pricing": pricing_chain,
+        "vision_sessions": session_chain,
+        "ai_usage_events": usage_table,
+    }.get(table, usage_table)
     repo = SupabaseVisionRepository(client=db, session_ttl_hours=24)
 
     repo.create_ai_usage_event(
@@ -110,6 +122,12 @@ def test_create_ai_usage_event_writes_canonical_usage_with_pricing():
     usage_table.insert.assert_called_once()
     payload = usage_table.insert.call_args.args[0]
     assert payload["phase_key"] == "vision_consolidation"
+    assert payload["tenant_id"] == "tenant-1"
+    assert payload["inspection_id"] == "inspection-1"
+    assert payload["capture_session_id"] == "capture-1"
+    assert payload["request_metadata_json"]["vision_mode"] == "inspection_damage_report"
+    assert payload["response_metadata_json"]["output_tokens_include_thinking"] is True
+    assert payload["request_metadata_json"]["vehicle_id"] == "vehicle-1"
     assert payload["source_table"] == "vision_analysis_calls"
     assert payload["source_id"] == "call-1"
     assert payload["estimated_cost_usd"] == "0.02600000"
@@ -122,12 +140,21 @@ def test_create_ai_usage_event_uses_missing_pricing_snapshot():
     insert_result = MagicMock()
     insert_result.data = [{"id": "usage-1"}]
     pricing_chain = _chain(pricing_result)
+    image_result = MagicMock()
+    image_result.data = {
+        "id": "image-1",
+        "inspection_media_asset_id": "asset-1",
+        "inspection_item_id": "item-1",
+    }
+    image_chain = _chain(image_result)
     usage_table = MagicMock()
     usage_table.insert.return_value = _chain(insert_result)
     db = MagicMock()
-    db.table.side_effect = lambda table: (
-        pricing_chain if table == "ai_model_pricing" else usage_table
-    )
+    db.table.side_effect = lambda table: {
+        "ai_model_pricing": pricing_chain,
+        "vision_session_images": image_chain,
+        "ai_usage_events": usage_table,
+    }.get(table, usage_table)
     repo = SupabaseVisionRepository(client=db, session_ttl_hours=24)
 
     repo.create_ai_usage_event(
@@ -142,6 +169,8 @@ def test_create_ai_usage_event_uses_missing_pricing_snapshot():
 
     payload = usage_table.insert.call_args.args[0]
     assert payload["phase_key"] == "vision_image_analysis"
+    assert payload["media_asset_id"] == "asset-1"
+    assert payload["request_metadata_json"]["inspection_item_id"] == "item-1"
     assert payload["outcome"] == "failed"
     assert payload["estimated_cost_usd"] is None
     assert payload["pricing_snapshot_json"] == {"status": "missing_pricing"}
