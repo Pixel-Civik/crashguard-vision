@@ -92,6 +92,8 @@ class StoredSessionImageResponse(BaseModel):
 
 class DamageReportResponse(BaseModel):
     session_id: str
+    model: str
+    prompt_versions: dict[str, str]
     vehicle_context: VehicleContext | None = None
     images: list[dict]
     zones: dict[str, list[Damage]]
@@ -100,9 +102,18 @@ class DamageReportResponse(BaseModel):
     built_at: str
 
     @classmethod
-    def from_domain(cls, dmap: DamageMap, built_at: str, image_count: int) -> "DamageReportResponse":
+    def from_domain(
+        cls,
+        dmap: DamageMap,
+        built_at: str,
+        image_count: int,
+        model: str,
+        prompt_versions: dict[str, str],
+    ) -> "DamageReportResponse":
         return cls(
             session_id=dmap.session_id,
+            model=model,
+            prompt_versions=prompt_versions,
             vehicle_context=dmap.vehicle_context,
             images=[{"id": k, **v.model_dump()} for k, v in dmap.images.items()],
             zones={k.value: v for k, v in dmap.zones.items()},

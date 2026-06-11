@@ -289,6 +289,7 @@ class SupabaseVisionRepository:
         prompt_tokens: int | None = None,
         response_tokens: int | None = None,
         error: str | None = None,
+        request_metadata: dict | None = None,
     ) -> None:
         created_at = datetime.now(timezone.utc).isoformat()
         pricing = self._find_model_pricing(
@@ -341,6 +342,7 @@ class SupabaseVisionRepository:
                 "vision_mode": usage_context["vision_mode"],
                 "vehicle_id": usage_context["vehicle_id"],
                 "inspection_item_id": usage_context["inspection_item_id"],
+                **(request_metadata or {}),
             },
             "response_metadata_json": {
                 "legacy_status": status,

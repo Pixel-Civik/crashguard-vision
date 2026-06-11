@@ -14,11 +14,16 @@ class ImageAnalyzer(Protocol):
         image_url: str,
         context: VehicleContext | None,
         source_image_id: str | None = None,
+        source_view: str | None = None,
     ) -> tuple[list[Damage], int, int, int | None, int | None]: ...
 
 
 class DamageAggregator(Protocol):
-    def aggregate(self, damage_lists: list[list[Damage]]) -> list[Damage]: ...
+    def aggregate(
+        self,
+        damage_lists: list[list[Damage]],
+        image_views: dict[str, str] | None = None,
+    ) -> list[Damage]: ...
 
 
 class DamageMapBuilder(Protocol):
@@ -106,5 +111,6 @@ class VisionRepository(Protocol):
     def create_ai_usage_event(
         self, call_id: str, call_type: str, model: str, latency_ms: int, status: str,
         session_id: str | None = None, image_id: str | None = None,
-        prompt_tokens: int | None = None, response_tokens: int | None = None, error: str | None = None
+        prompt_tokens: int | None = None, response_tokens: int | None = None,
+        error: str | None = None, request_metadata: dict | None = None,
     ) -> None: ...

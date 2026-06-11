@@ -258,6 +258,7 @@ def test_add_image_session_not_found(client):
 def test_get_report(client):
     mock_service = MagicMock()
     mock_service.get_report.return_value = DAMAGE_MAP
+    mock_service.model_name = "gemini-3-flash-preview"
     app.dependency_overrides[get_session_service] = lambda: mock_service
     try:
         response = client.get("/sessions/sess-uuid-001/report", headers={"x-vision-key": "test"})
@@ -267,6 +268,8 @@ def test_get_report(client):
     assert response.status_code == 200
     data = response.json()
     assert data["session_id"] == "sess-uuid-001"
+    assert data["model"] == "gemini-3-flash-preview"
+    assert data["prompt_versions"]["image_analysis"] == "vehicle-damage-image-v2"
     assert "zones" in data
     assert "summary" in data
     assert data["summary"]["total_damages"] == 1

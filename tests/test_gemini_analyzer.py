@@ -90,6 +90,47 @@ def test_analyze_returns_image_dimensions(mock_gemini_client, mock_image_bytes):
     assert response_tokens == 80
 
 
+def test_analyze_includes_source_view_in_prompt(mock_gemini_client, mock_image_bytes):
+    with patch("app.adapters.gemini_analyzer.httpx.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.content = mock_image_bytes
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        analyzer = GeminiImageAnalyzer(client=mock_gemini_client, model="gemini-2.5-flash")
+        analyzer.analyze_with_dimensions(
+            image_url="https://example.com/car.jpg",
+            context=VehicleContext(make="Toyota", model="RAV4"),
+            source_view="Foto 14: Llanta Trasera Derecha",
+        )
+
+    contents = mock_gemini_client.models.generate_content.call_args.kwargs["contents"]
+    assert "Toyota RAV4" in contents[1].text
+    assert "Foto 14: Llanta Trasera Derecha" in contents[1].text
+
+
+def test_analyze_clamps_confidence_and_bbox(mock_gemini_client, mock_image_bytes):
+    mock_gemini_client.models.generate_content.return_value.text = (
+        '[{"type":"dent","zone":"hood","severity":"medium","confidence":1.4,'
+        '"bbox_x":-0.2,"bbox_y":0.9,"bbox_w":1.4,"bbox_h":0.4,'
+        '"description":"Dent on hood"}]'
+    )
+    with patch("app.adapters.gemini_analyzer.httpx.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.content = mock_image_bytes
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        analyzer = GeminiImageAnalyzer(client=mock_gemini_client, model="gemini-2.5-flash")
+        damages = analyzer.analyze(image_url="https://example.com/car.jpg", context=None)
+
+    assert damages[0].confidence == 1.0
+    assert damages[0].bbox.x == 0.0
+    assert damages[0].bbox.y == 0.9
+    assert damages[0].bbox.w == 1.0
+    assert damages[0].bbox.h == pytest.approx(0.1)
+
+
 def test_analyze_raises_on_malformed_gemini_response(mock_gemini_client, mock_image_bytes):
     mock_gemini_client.models.generate_content.return_value.text = "Sorry, I cannot analyze this."
     with patch("app.adapters.gemini_analyzer.httpx.get") as mock_get:

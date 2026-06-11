@@ -1,6 +1,6 @@
 from __future__ import annotations
 from enum import Enum
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class VehicleZone(str, Enum):
@@ -47,6 +47,17 @@ class BoundingBox(BaseModel):
     w: float
     h: float
 
+    @field_validator("x", "y", "w", "h", mode="before")
+    @classmethod
+    def clamp_coordinate(cls, value: float) -> float:
+        return min(max(float(value), 0.0), 1.0)
+
+    @model_validator(mode="after")
+    def keep_inside_image(self) -> "BoundingBox":
+        self.w = min(self.w, 1.0 - self.x)
+        self.h = min(self.h, 1.0 - self.y)
+        return self
+
 
 class VehicleContext(BaseModel):
     make: str | None = None
@@ -85,6 +96,11 @@ class Damage(BaseModel):
         valid = {e.value for e in VehicleZone}
         return v if v in valid else VehicleZone.unknown.value
 
+    @field_validator("confidence", mode="before")
+    @classmethod
+    def clamp_confidence(cls, value: float) -> float:
+        return min(max(float(value), 0.0), 1.0)
+
 
 class AnalysisSummary(BaseModel):
     total_damages: int
@@ -120,4 +136,3 @@ class DamageMap(BaseModel):
     images: dict[str, SourceImageMeta]
     zones: dict[VehicleZone, list[Damage]]
     summary: DamageMapSummary
-

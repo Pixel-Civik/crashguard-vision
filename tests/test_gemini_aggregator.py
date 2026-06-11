@@ -60,6 +60,19 @@ def test_aggregate_returns_consolidated_damages(mock_gemini_client):
     assert aggregator.get_last_usage() == (200, 105)
 
 
+def test_aggregate_sends_source_views(mock_gemini_client):
+    aggregator = GeminiDamageAggregator(client=mock_gemini_client, model="gemini-2.5-flash")
+    damage = make_damage("d1", VehicleZone.rear_bumper, "img_001")
+
+    aggregator.aggregate(
+        [[damage]],
+        image_views={"img_001": "Foto 10: Funda Posterior"},
+    )
+
+    content = mock_gemini_client.models.generate_content.call_args.kwargs["contents"][0].text
+    assert '"source_view": "Foto 10: Funda Posterior"' in content
+
+
 def test_aggregate_empty_input(mock_gemini_client):
     aggregator = GeminiDamageAggregator(client=mock_gemini_client, model="gemini-2.5-flash")
     result = aggregator.aggregate([])

@@ -60,6 +60,7 @@ class DbAnalysisTracer:
                 prompt_tokens=prompt_tokens,
                 response_tokens=response_tokens,
                 error=error,
+                request_metadata=raw_response,
             )
         except Exception:
             logger.exception(

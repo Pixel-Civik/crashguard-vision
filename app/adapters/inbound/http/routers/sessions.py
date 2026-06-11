@@ -17,6 +17,10 @@ from app.application.use_cases.vision_sessions import VisionSessionUseCase
 from app.auth import verify_api_key
 from app.dependencies import get_vision_session_use_case
 from app.domain.models import AnalysisSummary
+from app.domain.prompt_metadata import (
+    CONSOLIDATION_PROMPT_VERSION,
+    IMAGE_PROMPT_VERSION,
+)
 
 router = APIRouter(prefix="/sessions")
 
@@ -173,6 +177,11 @@ def get_report(
             dmap=dmap,
             built_at=datetime.now(timezone.utc).isoformat(),
             image_count=len(dmap.images),
+            model=use_case.model_name,
+            prompt_versions={
+                "image_analysis": IMAGE_PROMPT_VERSION,
+                "consolidation": CONSOLIDATION_PROMPT_VERSION,
+            },
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

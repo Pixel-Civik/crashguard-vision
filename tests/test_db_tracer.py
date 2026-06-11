@@ -33,6 +33,7 @@ def test_record_success_returns_call_id(mock_repo):
         prompt_tokens=None,
         response_tokens=None,
         error=None,
+        request_metadata={"candidates": []},
     )
 
 

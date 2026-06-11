@@ -33,6 +33,9 @@ For each damage return a JSON object with:
 - bbox_x, bbox_y, bbox_w, bbox_h: normalized bounding box [0-1], top-left origin
 - description: brief description
 
+Use the supplied source view as strong spatial context. Left and right always refer to the vehicle's own left and right sides, not the viewer's screen.
+Do not guess a zone that is not visible. If the exact zone cannot be determined, omit the candidate rather than assigning an unrelated zone.
+Every bounding box must tightly surround only the visible physical damage and stay inside the image.
 Use "other" only for visible physical exterior vehicle damage that does not fit the other types. Never use "other" for tire pressure, dirt/debris, water/ground conditions, background objects, or image artifacts.
 Return a JSON array. If no damage found return [].
 """
@@ -70,11 +73,19 @@ class GeminiImageAnalyzer:
                 
         return image_bytes, width, height, mime_type
 
-    def _build_prompt(self, context: VehicleContext | None) -> str:
+    def _build_prompt(
+        self,
+        context: VehicleContext | None,
+        source_view: str | None = None,
+    ) -> str:
+        prompt_parts = []
         if context and any((context.make, context.model, context.year, context.color)):
             parts = [p for p in [context.make, context.model, str(context.year) if context.year else None, context.color] if p]
-            return f"Vehicle: {' '.join(parts)}. Analyze the damage."
-        return "Analyze the damage on this vehicle."
+            prompt_parts.append(f"Vehicle: {' '.join(parts)}.")
+        if source_view:
+            prompt_parts.append(f"Source view: {source_view}.")
+        prompt_parts.append("Analyze only visible physical exterior vehicle damage.")
+        return " ".join(prompt_parts)
 
     def _parse_response(self, raw: str, source_image_id: str | None) -> list[Damage]:
         try:
@@ -117,6 +128,7 @@ class GeminiImageAnalyzer:
         image_url: str,
         context: VehicleContext | None,
         source_image_id: str | None = None,
+        source_view: str | None = None,
     ) -> tuple[list[Damage], int, int, int | None, int | None]:
         image_bytes, width, height, mime_type = self._download_image(image_url)
 
@@ -125,7 +137,9 @@ class GeminiImageAnalyzer:
                 model=self._model,
                 contents=[
                     types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
-                    types.Part.from_text(text=self._build_prompt(context)),
+                    types.Part.from_text(
+                        text=self._build_prompt(context, source_view)
+                    ),
                 ],
                 config=types.GenerateContentConfig(
                     system_instruction=_SYSTEM_PROMPT,

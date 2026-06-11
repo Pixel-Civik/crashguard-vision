@@ -9,7 +9,6 @@ from app.adapters.gemini_usage import gemini_token_usage
 from app.domain.damage_filters import is_non_damage_false_positive
 from app.domain.models import Damage, BoundingBox
 
-
 _SYSTEM_PROMPT = """You are a vehicle damage consolidation specialist.
 You will receive a list of damages detected in multiple photos of the same vehicle.
 
@@ -20,7 +19,10 @@ Your task:
 4. In "also_seen_in" list the source_image_id of other photos where the same damage appears
 5. If uncertain, do NOT merge (keep them separate)
 
-Rule: same damage = same zone + same type + similar bbox overlap
+Bounding boxes from different photos are in different image coordinate systems and MUST NOT be compared for overlap.
+Merge across photos only when zone, damage type, physical description, source views, and visible location on the vehicle consistently describe the same physical damage.
+Within the same source image, overlapping boxes may be used as supporting evidence for deduplication.
+Never change a damage to a different vehicle zone merely to make two findings match.
 Keep true low-severity damage. Do not remove a damage only because it is low severity.
 Exclude flat/deflated/underinflated tires unless there is visible structural tire or rim damage.
 Exclude water, puddles, oil marks, dirt, dust, mud, leaves, bird droppings, organic debris, temporary stains, reflections, shadows, glare, background objects, stickers, logos, labels, and anything on the ground/floor/road/environment.
@@ -38,7 +40,11 @@ class GeminiDamageAggregator:
         self._last_prompt_tokens: int | None = None
         self._last_response_tokens: int | None = None
 
-    def aggregate(self, damage_lists: list[list[Damage]]) -> list[Damage]:
+    def aggregate(
+        self,
+        damage_lists: list[list[Damage]],
+        image_views: dict[str, str] | None = None,
+    ) -> list[Damage]:
         all_damages = [
             d
             for sublist in damage_lists
@@ -63,6 +69,11 @@ class GeminiDamageAggregator:
                 "bbox_h": d.bbox.h,
                 "description": d.description,
                 "source_image_id": d.source_image_id,
+                "source_view": (
+                    image_views.get(d.source_image_id)
+                    if image_views and d.source_image_id
+                    else None
+                ),
             }
             for d in all_damages
         ], ensure_ascii=False)

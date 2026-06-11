@@ -19,6 +19,10 @@ from app.domain.ports import (
     ImageAnalyzer,
     VisionRepository,
 )
+from app.domain.prompt_metadata import (
+    CONSOLIDATION_PROMPT_VERSION,
+    IMAGE_PROMPT_VERSION,
+)
 
 
 class VisionSessionUseCase:
@@ -37,6 +41,10 @@ class VisionSessionUseCase:
         self._damage_map_builder = damage_map_builder
         self._tracer = tracer
         self._model_name = model_name
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
 
     def create_session(
         self,
@@ -126,6 +134,7 @@ class VisionSessionUseCase:
                 image_url=image_url,
                 context=context,
                 source_image_id=image_id,
+                source_view=angle,
             )
             latency_ms = int((time.monotonic() - t0) * 1000)
 
@@ -135,7 +144,7 @@ class VisionSessionUseCase:
                 model=self._model_name,
                 latency_ms=latency_ms,
                 status="success",
-                raw_response={},
+                raw_response={"prompt_version": IMAGE_PROMPT_VERSION},
                 session_id=session_id,
                 image_id=image_id,
                 prompt_tokens=p_tokens,
@@ -255,7 +264,15 @@ class VisionSessionUseCase:
         ]
 
         t0 = time.monotonic()
-        aggregated = self._aggregator.aggregate(damage_lists)
+        image_views = {
+            row["id"]: row["angle"]
+            for row in completed_images
+            if row.get("angle")
+        }
+        aggregated = self._aggregator.aggregate(
+            damage_lists,
+            image_views=image_views,
+        )
         latency_ms = int((time.monotonic() - t0) * 1000)
         aggregate_prompt_tokens = None
         aggregate_response_tokens = None
@@ -267,7 +284,7 @@ class VisionSessionUseCase:
             model=self._model_name,
             latency_ms=latency_ms,
             status="success",
-            raw_response={},
+            raw_response={"prompt_version": CONSOLIDATION_PROMPT_VERSION},
             session_id=session_id,
             prompt_tokens=aggregate_prompt_tokens,
             response_tokens=aggregate_response_tokens,
@@ -416,6 +433,7 @@ class VisionSessionUseCase:
                 image_url=image_url,
                 context=context,
                 source_image_id=image_id,
+                source_view=image_row.get("angle"),
             )
             latency_ms = int((time.monotonic() - t0) * 1000)
 
@@ -425,7 +443,7 @@ class VisionSessionUseCase:
                 model=self._model_name,
                 latency_ms=latency_ms,
                 status="success",
-                raw_response={},
+                raw_response={"prompt_version": IMAGE_PROMPT_VERSION},
                 session_id=session_id,
                 image_id=image_id,
                 prompt_tokens=p_tokens,

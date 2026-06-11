@@ -117,6 +117,7 @@ def test_create_ai_usage_event_writes_canonical_usage_with_pricing():
         session_id="session-1",
         prompt_tokens=1000,
         response_tokens=2000,
+        request_metadata={"prompt_version": "vehicle-damage-consolidation-v2"},
     )
 
     usage_table.insert.assert_called_once()
@@ -126,6 +127,10 @@ def test_create_ai_usage_event_writes_canonical_usage_with_pricing():
     assert payload["inspection_id"] == "inspection-1"
     assert payload["capture_session_id"] == "capture-1"
     assert payload["request_metadata_json"]["vision_mode"] == "inspection_damage_report"
+    assert (
+        payload["request_metadata_json"]["prompt_version"]
+        == "vehicle-damage-consolidation-v2"
+    )
     assert payload["response_metadata_json"]["output_tokens_include_thinking"] is True
     assert payload["request_metadata_json"]["vehicle_id"] == "vehicle-1"
     assert payload["source_table"] == "vision_analysis_calls"

@@ -340,6 +340,7 @@ def test_retry_image_reuses_existing_failed_image_with_fresh_url():
         image_url="https://fresh.example.com/car.jpg",
         context=None,
         source_image_id="image-1",
+        source_view=None,
     )
     repo.update_image_completed.assert_called_once()
 
@@ -398,6 +399,7 @@ def test_force_retry_reanalyzes_completed_image_and_invalidates_damage_map():
         image_url="https://fresh.example.com/car.jpg",
         context=None,
         source_image_id="image-1",
+        source_view=None,
     )
 
 
