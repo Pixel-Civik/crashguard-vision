@@ -1,6 +1,7 @@
 # Agent Platform con ADC
 
-Cambio preparado desde `main`; activación y modelo pendientes de revisión.
+Cambio preparado desde `main`. Modelo seleccionado: `gemini-3-flash-preview`,
+conservando el modelo actual. Activación pendiente de comprobaciones operativas.
 
 El cliente de Gemini usa ADC cuando existe `VERTEX_AI_PROJECT`. En ese modo no se
 pasa `GEMINI_API_KEY`, aunque haya una clave antigua en el entorno. La ubicación
@@ -17,8 +18,8 @@ No elimina secretos de Secret Manager ni cambia permisos IAM.
 
 Antes de activar en producción:
 
-1. Elegir el modelo junto con la API. `_GEMINI_MODEL` sigue configurable y mantiene
-   el valor actual solo como línea base. No se ha aprobado un reemplazo.
+1. Verificar `gemini-3-flash-preview` con la API y este servicio mediante ADC.
+   La selección está resuelta y `_GEMINI_MODEL` sigue configurable.
 2. Verificar facturación Cloud, API `aiplatform.googleapis.com` y permiso de
    inferencia `aiplatform.endpoints.predict` para la identidad de Cloud Run.
    La identidad actual es `crashguard-api@seguros-489903.iam.gserviceaccount.com`.
