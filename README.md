@@ -233,6 +233,9 @@ crashguard-vision/
 
 ```
 GEMINI_API_KEY          # o VERTEX_AI_PROJECT para Vertex
+VERTEX_AI_PROJECT      # Agent Platform con ADC; tiene prioridad sobre la clave
+VERTEX_AI_LOCATION     # default: global
+GEMINI_API_VERSION     # ADC default: v1
 GEMINI_MODEL            # default: gemini-2.5-flash
 SUPABASE_URL
 SUPABASE_SERVICE_KEY    # service role, no anon
@@ -249,6 +252,10 @@ Mismo patrón que `crashguard-api`:
 - `cloudbuild.yaml` → Cloud Run
 - Escala a cero fuera de horario (análisis no es tiempo real)
 - `min-instances: 0`, `max-instances: 10`
+
+Producción se configura para Agent Platform con ADC de la cuenta de servicio de
+Cloud Run. `cloudbuild.dev.yaml` conserva el modo Developer API con clave.
+Ver [requisitos de activación de ADC](./docs/agent-platform-adc.md).
 
 ---
 
