@@ -233,21 +233,35 @@ class VisionSessionUseCase:
         )
         cached_map = self._repo.get_damage_map(session_id)
 
-        if cached_map:
+        if (
+            cached_map
+            and cached_map.get("image_count") == len(completed_images)
+            and isinstance(cached_map.get("built_at"), str)
+        ):
             try:
-                if cached_map.get("image_count") == len(completed_images):
-                    return DamageMap(
-                        session_id=session_id,
-                        vehicle_context=session.get("vehicle_context"),
-                        images={k: SourceImageMeta(**v) for k, v in cached_map["images"].items()},
-                        zones={
-                            VehicleZone(k): [Damage(**d) for d in v]
-                            for k, v in cached_map["zones"].items()
-                        },
-                        summary=DamageMapSummary(**cached_map["summary"]),
-                    )
-            except Exception:
+                damage_map = DamageMap(
+                    session_id=session_id,
+                    vehicle_context=session.get("vehicle_context"),
+                    images={k: SourceImageMeta(**v) for k, v in cached_map["images"].items()},
+                    zones={
+                        VehicleZone(k): [Damage(**d) for d in v]
+                        for k, v in cached_map["zones"].items()
+                    },
+                    summary=DamageMapSummary(**cached_map["summary"]),
+                )
+            except (KeyError, TypeError, ValueError):
                 pass  # Fallback to re-aggregation if cache schema is incompatible
+            else:
+                # Old caches omitted image usage. Recover it from the linked
+                # calls without invoking Gemini or creating another usage event.
+                usage = self._repo.get_cached_aggregation_usage(
+                    session_id, cached_map["built_at"]
+                ) or {}
+                self._apply_report_usage(
+                    damage_map.summary, completed_images,
+                    usage.get("prompt_tokens"), usage.get("response_tokens"),
+                )
+                return damage_map
 
         images_meta = {
             row["id"]: SourceImageMeta(
@@ -293,24 +307,15 @@ class VisionSessionUseCase:
         context_dict = session.get("vehicle_context")
         context = VehicleContext(**context_dict) if context_dict else None
 
-        total_processing_ms = sum(row.get("processing_ms") or 0 for row in completed_images)
-        total_prompt_tokens = (
-            sum(row.get("prompt_tokens") or 0 for row in completed_images)
-            + (aggregate_prompt_tokens or 0)
-        )
-        total_response_tokens = (
-            sum(row.get("response_tokens") or 0 for row in completed_images)
-            + (aggregate_response_tokens or 0)
-        )
-
         damage_map = self._damage_map_builder.build(
             damages=aggregated,
             images=images_meta,
             session_id=session_id,
             vehicle_context=context,
-            total_processing_ms=total_processing_ms,
-            total_prompt_tokens=total_prompt_tokens,
-            total_response_tokens=total_response_tokens,
+        )
+        self._apply_report_usage(
+            damage_map.summary, completed_images,
+            aggregate_prompt_tokens, aggregate_response_tokens,
         )
 
         completed_ids = {row["id"] for row in completed_images}
@@ -329,6 +334,23 @@ class VisionSessionUseCase:
             image_count=len(completed_images),
         )
         return damage_map
+
+    @staticmethod
+    def _apply_report_usage(
+        summary: DamageMapSummary,
+        images: list[dict],
+        aggregate_prompt_tokens: int | None,
+        aggregate_response_tokens: int | None,
+    ) -> None:
+        summary.total_processing_ms = sum(row.get("processing_ms") or 0 for row in images)
+        summary.total_prompt_tokens = (
+            sum(row.get("prompt_tokens") or 0 for row in images)
+            + (aggregate_prompt_tokens or 0)
+        )
+        summary.total_response_tokens = (
+            sum(row.get("response_tokens") or 0 for row in images)
+            + (aggregate_response_tokens or 0)
+        )
 
     def _validate_inspection_metadata(
         self,
@@ -410,9 +432,9 @@ class VisionSessionUseCase:
             damages=damages,
             image_width=image_row.get("image_width") or 0,
             image_height=image_row.get("image_height") or 0,
-            processing_ms=0,
-            prompt_tokens=0,
-            response_tokens=0,
+            processing_ms=image_row.get("processing_ms"),
+            prompt_tokens=image_row.get("prompt_tokens"),
+            response_tokens=image_row.get("response_tokens"),
         )
 
     def _analyze_existing_image(
