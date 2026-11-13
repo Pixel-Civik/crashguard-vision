@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from google import genai
+from google.genai import types
 from supabase import create_client
 
 from app.application.use_cases.analyze_image import AnalyzeImageUseCase
@@ -14,7 +15,16 @@ from app.domain.services import DamageMapFactory
 
 @lru_cache
 def _gemini_client() -> genai.Client:
-    return genai.Client(api_key=settings.gemini_api_key)
+    if settings.vertex_ai_project:
+        return genai.Client(
+            vertexai=True,
+            project=settings.vertex_ai_project,
+            location=settings.vertex_ai_location,
+            http_options=types.HttpOptions(
+                api_version=settings.gemini_api_version or "v1"
+            ),
+        )
+    return genai.Client(vertexai=False, api_key=settings.gemini_api_key)
 
 
 @lru_cache
