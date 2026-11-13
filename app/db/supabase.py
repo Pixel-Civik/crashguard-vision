@@ -5,6 +5,11 @@ from supabase import Client
 
 
 class SupabaseVisionRepository:
+    _IMAGE_WITH_USAGE = (
+        "*, analysis_usage:vision_analysis_calls!gemini_call_id"
+        "(latency_ms,prompt_tokens,response_tokens)"
+    )
+
     def __init__(self, client: Client, session_ttl_hours: int) -> None:
         self._db = client
         self._session_ttl_hours = session_ttl_hours
@@ -93,6 +98,17 @@ class SupabaseVisionRepository:
 
     # --- session images ---
 
+    @staticmethod
+    def _with_image_usage(row: dict) -> dict:
+        image = dict(row)
+        usage = image.pop("analysis_usage", None) or {}
+        return {
+            **image,
+            "processing_ms": usage.get("latency_ms"),
+            "prompt_tokens": usage.get("prompt_tokens"),
+            "response_tokens": usage.get("response_tokens"),
+        }
+
     def create_session_image(
         self,
         session_id: str,
@@ -123,7 +139,7 @@ class SupabaseVisionRepository:
     ) -> dict | None:
         result = (
             self._db.table("vision_session_images")
-            .select("*")
+            .select(self._IMAGE_WITH_USAGE)
             .eq("session_id", session_id)
             .eq("inspection_media_asset_id", inspection_media_asset_id)
             .eq("inspection_item_id", inspection_item_id)
@@ -131,7 +147,7 @@ class SupabaseVisionRepository:
             .limit(1)
             .execute()
         )
-        return result.data[0] if result is not None and result.data else None
+        return self._with_image_usage(result.data[0]) if result is not None and result.data else None
 
     def update_image_analyzing(
         self, image_id: str, width: int, height: int
@@ -170,33 +186,33 @@ class SupabaseVisionRepository:
     def get_session_image(self, image_id: str) -> dict | None:
         result = (
             self._db.table("vision_session_images")
-            .select("*")
+            .select(self._IMAGE_WITH_USAGE)
             .eq("id", image_id)
             .maybe_single()
             .execute()
         )
-        return result.data if result is not None else None
+        return self._with_image_usage(result.data) if result is not None and result.data else None
 
     def get_session_images(self, session_id: str) -> list[dict]:
         result = (
             self._db.table("vision_session_images")
-            .select("*")
+            .select(self._IMAGE_WITH_USAGE)
             .eq("session_id", session_id)
             .order("uploaded_at")
             .execute()
         )
-        return result.data
+        return [self._with_image_usage(row) for row in result.data]
 
     def get_completed_images(self, session_id: str) -> list[dict]:
         result = (
             self._db.table("vision_session_images")
-            .select("*")
+            .select(self._IMAGE_WITH_USAGE)
             .eq("session_id", session_id)
             .eq("status", "completed")
             .order("uploaded_at")
             .execute()
         )
-        return result.data
+        return [self._with_image_usage(row) for row in result.data]
 
     def get_all_images(self, session_id: str) -> list[dict]:
         result = (
@@ -245,6 +261,20 @@ class SupabaseVisionRepository:
         return result.data[0]
 
     # --- analysis calls ---
+
+    def get_cached_aggregation_usage(self, session_id: str, built_at: str) -> dict | None:
+        result = (
+            self._db.table("vision_analysis_calls")
+            .select("prompt_tokens,response_tokens")
+            .eq("session_id", session_id)
+            .eq("call_type", "aggregate_damages")
+            .eq("status", "success")
+            .lte("created_at", built_at)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return result.data[0] if result is not None and result.data else None
 
     def create_analysis_call(
         self,

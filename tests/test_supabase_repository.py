@@ -1,4 +1,5 @@
 from unittest.mock import MagicMock
+import pytest
 
 from app.db.supabase import SupabaseVisionRepository
 
@@ -67,6 +68,64 @@ def test_validate_inspection_image_link_rejects_missing_match():
         inspection_media_asset_id="asset-1",
         inspection_item_id="item-1",
     )
+
+
+@pytest.mark.parametrize("method", [
+    "get_session_image", "get_session_images", "get_completed_images",
+    "find_session_image_for_inspection_asset",
+])
+def test_image_reads_load_usage_from_the_linked_call(method):
+    row = {
+        "id": "image-1", "gemini_call_id": "current-call",
+        "analysis_usage": {"latency_ms": 140, "prompt_tokens": 110, "response_tokens": 80},
+    }
+    result = MagicMock()
+    result.data = row if method == "get_session_image" else [row]
+    query = _chain(result)
+    db = MagicMock()
+    db.table.return_value = query
+    repo = SupabaseVisionRepository(client=db, session_ttl_hours=24)
+
+    if method == "find_session_image_for_inspection_asset":
+        actual = repo.find_session_image_for_inspection_asset("session", "asset", "item")
+    else:
+        actual = getattr(repo, method)("id")
+    image = actual[0] if isinstance(actual, list) else actual
+
+    assert image["processing_ms"] == 140
+    assert image["prompt_tokens"] == 110
+    assert image["response_tokens"] == 80
+    assert "analysis_usage" not in image
+    query.select.assert_called_once_with(
+        "*, analysis_usage:vision_analysis_calls!gemini_call_id(latency_ms,prompt_tokens,response_tokens)"
+    )
+
+
+def test_missing_image_call_usage_is_unknown_not_fabricated_zero():
+    result = MagicMock()
+    result.data = {"id": "legacy-image", "analysis_usage": None}
+    db = MagicMock()
+    db.table.return_value = _chain(result)
+    row = SupabaseVisionRepository(db, 24).get_session_image("legacy-image")
+    assert row["prompt_tokens"] is None
+    assert row["response_tokens"] is None
+    assert row["processing_ms"] is None
+
+
+def test_cached_aggregation_usage_is_scoped_to_the_cache_build_time():
+    result = MagicMock()
+    result.data = [{"prompt_tokens": 30, "response_tokens": 20}]
+    db = MagicMock()
+    db.table.return_value = _chain(result)
+    repo = SupabaseVisionRepository(db, 24)
+    assert repo.get_cached_aggregation_usage("session", "2026-11-12T20:00:00Z") == result.data[0]
+    query = db.table.return_value
+    query.eq.assert_any_call("session_id", "session")
+    query.eq.assert_any_call("call_type", "aggregate_damages")
+    query.eq.assert_any_call("status", "success")
+    query.lte.assert_called_once_with("created_at", "2026-11-12T20:00:00Z")
+    query.order.assert_called_once_with("created_at", desc=True)
+    query.limit.assert_called_once_with(1)
 
 
 def test_create_ai_usage_event_writes_canonical_usage_with_pricing():
